@@ -5,6 +5,20 @@ browse the library, prepare tracks, and monitor and load the decks. It is built 
 an **800×480 landscape display** and adapts to 1024×600 and larger windows. See the
 [roadmap](ROADMAP.md) for what's next.
 
+![Collection at 800×480](docs/collection-800x480.png)
+
+![Players at 800×480](docs/players-800x480.png)
+
+![Focused player at 800×480](docs/player-focus-800x480.png)
+
+![Waveforms view at 800×480](docs/players-compare-800x480.png)
+
+![Inspect with hot cues A–H at 800×480](docs/hot-cues-800x480.png)
+
+![Inspect with beat-jump controls at 800×480](docs/beat-jump-800x480.png)
+
+![Beat-snapped loop preview at 800×480](docs/loop-preview-800x480.png)
+
 ## Try it
 
 ```sh
@@ -33,7 +47,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
   cue markers, and Track, Artist, BPM, Key and Time columns. Drag to scroll, tap to
   select, then **Inspect** or **Load to…**. Smart playlists and
   folders have their own icons.
-- **Search** with a built-in keyboard; results update as you type.
+- **Search** with a built-in keyboard; results update as you type
+  ([800×480](docs/keyboard-800x480.png), [1280×800](docs/search-results-1280x800.png)).
 - **Sort** by any column (tap a heading) or from the menu, and **filter** by BPM
   range, key, genre, rating, color and tags. Sorting is remembered across restarts.
 - **Match a player:** find tracks that fit a deck's pitched tempo and key, then
@@ -50,7 +65,9 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - Local audio preview, a millisecond cursor readout, **Quantize**, beat jumps of
   1–32 beats, and beat loops with **½ / ×2**.
 - Hot cues A–H: tap an empty pad to set one, tap to jump, hold to edit. **Edit
-  cues…** moves, labels and colors hot and memory cues.
+  cues…** moves, labels and colors hot and memory cues
+  ([previews](docs/cue-preview-800x480.png), [Inspect](docs/cue-inspect-800x480.png),
+  [zoomed out](docs/cue-inspect-fit-1280x800.png)).
 - **Back** or Escape returns to wherever Inspect was opened from, with its
   selection, scroll and view intact. Previewing never moves a deck.
 
@@ -163,7 +180,7 @@ VYNULL_AUDIO_TEST_ORIGIN=http://127.0.0.1:9443 VYNULL_AUDIO_TEST_TRACK=123 \
 Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and ImageMagick), and
 `--help` lists a capture for each feature. Screenshots go to a new temporary
 folder unless you pass `--output-dir`; the script never touches real players or
-a real library.
+a real library. Only the images linked here belong in `docs/`.
 
 Library requests, player status, artwork, deck analysis, preview audio and logs
 each run on their own bounded worker, so a slow request never stalls the deck
