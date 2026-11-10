@@ -1,0 +1,173 @@
+# Vynull Touch Roadmap
+
+Updated November 10, 2026
+
+Vynull Touch is a touchscreen companion for Vynull: browse the library, prepare
+tracks, and monitor and load the decks. It is built for 800×480 first; larger
+displays get more player information. The milestones set an order of work, not
+dates.
+
+## Where things stand
+
+Everything below is built. The latest build passed 174 tests (the opt-in
+hardware-audio test skipped). What's missing across the board is
+validation on the physical touchscreen and with live CDJs; see Next steps.
+
+**Library**
+
+- Collection and playlist tables with artwork and waveform previews, search with
+  a touch keyboard, filters, and ascending, descending or original sorting on
+  any column.
+- Match a player: tracks that fit a deck's pitched tempo and key.
+- Rating, color and tag edits; playlist, folder, tag and category management.
+
+**Inspect**
+
+- Overview and detailed waveforms with the beat grid, phrase strips and
+  remembered zoom.
+- Local audio preview with a choice of output, beat jumps, a millisecond cursor
+  readout and Quantize.
+- Hot cues A–H, cue editing and saved loops.
+
+**Players**
+
+- Cards, Waveforms and a focused view, two-player comparison, custom pairs, and
+  four cards when the display has room.
+- Smooth estimated playheads; phrase strips with the current section, and a
+  bars/beats countdown to the next phrase.
+- Loading with session and source checks, and confirmation before replacing a
+  playing track.
+
+**Settings and diagnostics**
+
+- Saved server, startup page and waveform style.
+- Diagnostics: status, versions, request errors, logs and a copyable report.
+
+**Releases:** `scripts/release.py` builds natively, checks checksums, installs
+atomically, keeps the previous build for rollback and can restart the open UI.
+
+## Next steps
+
+1. Walk through the features on the physical touchscreen: navigation,
+   Back and the editors.
+2. Check them against live CDJs: playhead smoothness and countdowns.
+3. Measure performance on the Pi and set budgets from it.
+4. Add recently played history, and document the desktop shortcut and
+   autostart setup.
+
+## Milestones
+
+| Priority | Milestone | Status |
+| --- | --- | --- |
+| Now | 1 Everyday use | Built; touchscreen walkthrough pending |
+| Now | 2 Repeatable releases | Done except the shortcut and autostart docs |
+| Next | 3 Player monitoring and diagnostics | Layouts done; timing states, log search and performance pending |
+| Next | 4 Finding the next track | Sorting, filters and Match done; shortlist, history and browsing-state polish pending |
+| Later | 5 Track preparation | Metadata and playlist editors done; grid editor, readback and refresh polish pending |
+
+Items are checked when built. A milestone is done when its
+criteria are verified on the hardware.
+
+### 1 Everyday use
+
+- [x] Back from Inspect returns where you came from, keeping the player pair,
+  playlist, search, selection and scroll position.
+- [x] Saved server address and startup page: command-line options, then saved
+  preferences, then defaults.
+- [x] Connection recovery with progress, backoff and a manual retry, kept apart
+  from loads and edits.
+- [x] Library and cue changes refresh in the background without losing context.
+- [x] A replaced library is a new session: old selections and drafts are cleared.
+
+**Done when** a touchscreen walkthrough covers Players → Inspect → Back, an edit
+from another client, a daemon restart, a network loss and a library replacement,
+with no wrong-track selection, lost context, unexpected audio or replayed writes.
+
+### 2 Repeatable releases
+
+- [x] The project and app are named Vynull Touch (`vynull-touch`).
+- [x] Release tooling in the repository: preflight checks, staging, checksums,
+  atomic install, rollback and an opt-in restart of the open UI.
+- [x] UI and daemon versions, and daemon capabilities, shown in Diagnostics.
+- [x] ARM64 release artifacts with dependency information and checksums. Native
+  builds stay the release path; a GCC cross build is future work.
+- [ ] Document the desktop shortcut and optional autostart, with configuration
+  paths and how to recover from a failed update.
+
+**Done when** a clean checkout builds, tests, installs, launches and rolls back
+with documented commands, and a missing drive or failed build leaves the
+installed UI usable.
+
+### 3 Player monitoring and diagnostics
+
+- [x] Waveforms layout with stacked scrolling waveforms, and saved waveform
+  styles (Auto, RGB, 3-band, Blue).
+- [ ] Readable timing state: source, estimated position, stale status, missing
+  analysis and disconnected players. CUED and paused waveforms are done.
+- [ ] Diagnostics log search and analysis availability. Status and the report
+  are done.
+- [ ] Measure frame pacing, CPU, memory and request latency on the Pi. Target
+  60 fps for two moving waveforms on a Pi 5.
+- [ ] Tune redraws and asset work from those measurements, and exercise pitch
+  changes, loops, seeks, track swaps, delayed status and reconnects on hardware.
+
+**Done when** a two-hour Pi session runs without crashes, memory growth or lost
+touch responsiveness, the measurements are recorded, and live CDJs confirm the
+timing, with four physical players tested apart from simulated ones.
+
+### 4 Finding the next track
+
+- [x] Sorting and filters (BPM, key, genre, rating, color, tags), remembered
+  across restarts.
+- [x] Library table with waveform previews beside the artwork.
+- [ ] A shortlist with touch-friendly add, remove and reorder; loading stays
+  explicit.
+- [x] Match a player by its pitched tempo and key.
+- [ ] Recently played history, linking to Inspect for tracks still in the
+  library.
+- [ ] Keep browsing state between playlists and Players, and show clear empty,
+  missing-file and unavailable-track states.
+
+**Done when** a track can be found, shortlisted, inspected and loaded with the
+800×480 touchscreen alone, and a replaced library can't point history or the
+shortlist at the wrong track.
+
+### 5 Track preparation
+
+- [x] Rating, color and tag edits in Inspect.
+- [x] Tag and category management.
+- [x] Playlist and folder management.
+- [ ] Beat-grid editing (nudges, beat 1, BPM) that respects analysis locks.
+- [ ] Read every edit back and refresh related views; keep drafts on recoverable
+  errors and make uncertain saves explicit.
+
+**Done when** edits survive reopening the track and restarting the daemon,
+including locked grids, concurrent edits, changed source files, lost replies and
+persistence failures, and no edit or preview ever moves a deck.
+
+## Depends on Vynull
+
+- Tracks and cues have revision endpoints; playlists don't, so the app polls the
+  playlist tree and the open playlist.
+- A shortlist needs a decision first: kept on this device, or shared as a
+  regular Vynull playlist.
+- Recently played history needs Vynull's history identity contract checked.
+
+Missing guarantees like these are Vynull work; a check in the app doesn't make a
+write atomic.
+
+## Scope
+
+The first stable release covers browsing, monitoring, deliberate loading and
+light preparation. Later candidates: bulk import and file management, USB
+export, smart-playlist authoring and full metadata administration. Controlling
+the CDJs (play/pause, seeking, hot cues) needs a separate decision. Portrait
+layouts, displays below 800×480 and running without a desktop compositor are out
+of scope for now.
+
+## Release checks
+
+For each release, run the tests, formatting and lint checks, and a native ARM64
+build. Try changed interactions on the physical touchscreen, since VNC doesn't
+cover touch, at 800×480 and a larger size. Run audio or live-player checks when
+those paths change, and keep the release evidence with the build ID.

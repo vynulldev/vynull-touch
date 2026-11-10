@@ -1,0 +1,161 @@
+diff --git a/api/cueadapter.go b/api/cueadapter.go
+--- a/api/cueadapter.go
++++ b/api/cueadapter.go
+@@ -40,6 +40,7 @@
+ 			TimeMs:  c.TimeMs,
+ 			LoopMs:  c.LoopMs,
+ 			ColorID: c.ColorID,
++			Label:   c.Label,
+ 		}
+ 	}
+ 	return out
+@@ -58,6 +59,7 @@
+ 		LoopMs:  cue.LoopMs,
+ 		Status:  1, // active
+ 		ColorID: cue.ColorID,
++		Label:   cue.Label,
+ 	}
+ }
+ 
+@@ -87,3 +89,6 @@
+ 
+ // Rev returns the cue store's revision.
+ func (a *CueStoreAdapter) Rev() uint64 { return a.Store.Rev() }
++
++// Flush confirms that API cue edits reached disk.
++func (a *CueStoreAdapter) Flush() error { return a.Store.Flush() }
+diff --git a/api/cues.go b/api/cues.go
+--- a/api/cues.go
++++ b/api/cues.go
+@@ -141,9 +141,7 @@
+ 			// colour edit shows without reloading it.
+ 			s.Device.BroadcastTrackRefresh(trackID)
+ 		}
+-		writeJSON(w, struct {
+-			OK bool `json:"ok"`
+-		}{true})
++		s.cueWriteReceipt(w)
+ 
+ 	case "DELETE":
+ 		if len(parts) < 3 {
+@@ -161,8 +159,22 @@
+ 		if s.Device != nil {
+ 			s.Device.BroadcastTrackRefresh(trackID)
+ 		}
+-		writeJSON(w, struct {
+-			OK bool `json:"ok"`
+-		}{true})
++		s.cueWriteReceipt(w)
+ 	}
+ }
++
++// Report a write as persisted only after the cue store confirms its flush.
++func (s *Server) cueWriteReceipt(w http.ResponseWriter) {
++	persisted := false
++	if store, ok := s.Cues.(interface{ Flush() error }); ok {
++		if err := store.Flush(); err != nil {
++			jsonError(w, "Cue changed in memory but disk persistence failed: "+err.Error(), http.StatusInternalServerError)
++			return
++		}
++		persisted = true
++	}
++	writeJSON(w, struct {
++		OK        bool `json:"ok"`
++		Persisted bool `json:"persisted"`
++	}{true, persisted})
++}
+diff --git a/dbserver/cuepoints.go b/dbserver/cuepoints.go
+--- a/dbserver/cuepoints.go
++++ b/dbserver/cuepoints.go
+@@ -23,12 +23,13 @@
+ 
+ // CuePoint represents a saved hot cue or loop.
+ type CuePoint struct {
+-	Number  uint16 `json:"number"`   // 1-based: A=1, B=2, C=3, ...
+-	Type    uint16 `json:"type"`     // 1=cue, 2=loop
+-	TimeMs  uint32 `json:"time_ms"`  // cue position in ms
+-	LoopMs  int32  `json:"loop_ms"`  // loop end in ms (-1 if not a loop)
+-	Status  uint32 `json:"status"`   // 1=active
+-	ColorID uint32 `json:"color_id"` // color/flags
++	Number  uint16 `json:"number"`          // 1-based: A=1, B=2, C=3, ...
++	Type    uint16 `json:"type"`            // 1=cue, 2=loop
++	TimeMs  uint32 `json:"time_ms"`         // cue position in ms
++	LoopMs  int32  `json:"loop_ms"`         // loop end in ms (-1 if not a loop)
++	Status  uint32 `json:"status"`          // 1=active
++	ColorID uint32 `json:"color_id"`        // color/flags
++	Label   string `json:"label,omitempty"` // optional cue name from library clients
+ }
+ 
+ // CueStore persists cue points per track to disk: cues_<id>.json, plus
+diff --git a/api/cue_labels_test.go b/api/cue_labels_test.go
+--- /dev/null
++++ b/api/cue_labels_test.go
+@@ -0,0 +1,68 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++package api
++
++import (
++	"encoding/json"
++	"net/http/httptest"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"github.com/vynulldev/vynull/dbserver"
++)
++
++func TestCueLabelWriteReadbackAndRestart(t *testing.T) {
++	dir := t.TempDir()
++	store := dbserver.NewCueStore(dir)
++	defer store.Close()
++	s := &Server{Cues: &CueStoreAdapter{Store: store}}
++	body := `{"number":2,"type":"loop","time_ms":1125,"loop_ms":3125,"color_id":42,"label":"Drop α"}`
++	w := httptest.NewRecorder()
++	s.handleCues(w, httptest.NewRequest("POST", "/api/tracks/7/cues", strings.NewReader(body)))
++	if w.Code != 200 || !strings.Contains(w.Body.String(), `"persisted":true`) {
++		t.Fatalf("write: %d %s", w.Code, w.Body.String())
++	}
++	reloaded := dbserver.NewCueStore(dir)
++	defer reloaded.Close()
++	s.Cues = &CueStoreAdapter{Store: reloaded}
++	w = httptest.NewRecorder()
++	s.handleCues(w, httptest.NewRequest("GET", "/api/tracks/7/cues", nil))
++	var cues []CueInfo
++	if err := json.Unmarshal(w.Body.Bytes(), &cues); err != nil {
++		t.Fatal(err)
++	}
++	var expected CueInfo
++	if err := json.Unmarshal([]byte(body), &expected); err != nil {
++		t.Fatal(err)
++	}
++	if len(cues) != 1 || cues[0] != expected {
++		t.Fatalf("readback after restart: %+v", cues)
++	}
++	w = httptest.NewRecorder()
++	s.handleCues(w, httptest.NewRequest("DELETE", "/api/tracks/7/cues/2", nil))
++	if w.Code != 200 || !strings.Contains(w.Body.String(), `"persisted":true`) {
++		t.Fatalf("delete: %d %s", w.Code, w.Body.String())
++	}
++	if _, err := os.Stat(filepath.Join(dir, "cues_7.json")); !os.IsNotExist(err) {
++		t.Fatalf("cue file remains: %v", err)
++	}
++}
++
++func TestCueDiskFailureIsNotReportedPersisted(t *testing.T) {
++	dir := filepath.Join(t.TempDir(), "cues")
++	store := dbserver.NewCueStore(dir)
++	defer store.Close()
++	if err := os.Remove(dir); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(dir, []byte("not a directory"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	s := &Server{Cues: &CueStoreAdapter{Store: store}}
++	w := httptest.NewRecorder()
++	s.handleCues(w, httptest.NewRequest("POST", "/api/tracks/7/cues", strings.NewReader(`{"number":1,"type":"cue","time_ms":0,"loop_ms":-1,"label":"Start"}`)))
++	if w.Code != 500 || strings.Contains(w.Body.String(), `"persisted":true`) {
++		t.Fatalf("unexpected persistence success: %d %s", w.Code, w.Body.String())
++	}
++}

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Vynull Touch
+Comment=Vynull touchscreen companion
+Exec=/usr/local/bin/vynull-touch --fullscreen --server http://127.0.0.1:9443
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=false
