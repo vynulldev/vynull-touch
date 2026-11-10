@@ -90,8 +90,7 @@ in the background.
   header. Older servers can still be browsed.
 - **Background refresh:** track revisions; cue refresh also needs the cue
   revision and batch endpoints. Without them, use **Refresh**.
-- **Cue labels and confirmed saves:** until Vynull keeps them, the daemon patch
-  in [`packaging/vynull-cue-labels.patch`](packaging/vynull-cue-labels.patch).
+- **Cue labels and confirmed saves:** Vynull #175 and #170.
 - **Preview audio:** `/api/audio/{id}?transcode=1`, which needs ffmpeg on the
   Vynull machine.
 - **Optional:** phrases, 3-band waveforms, `/api/version` and `/api/diag/logs`.
