@@ -11,6 +11,7 @@ mod phrase_tests;
 mod phrase_ui;
 #[cfg(test)]
 mod tests;
+mod timing;
 
 struct DeckSnapshot {
     peer: Option<Peer>,
@@ -535,28 +536,35 @@ impl App {
         } else {
             "Timing unavailable".into()
         };
+        let next_cue = timing::cue_summary(&assets, position, false);
+        let compact = next_cue.is_some() || !assets.phrases.is_empty();
+        let times_rect = Rect::from_min_max(
+            pos2(inside.left(), wave.bottom() + 2.0),
+            pos2(
+                inside.right(),
+                wave.bottom() + if compact { 16.0 } else { 22.0 },
+            ),
+        );
         theme::text(
             &painter,
-            Rect::from_min_max(
-                pos2(inside.left(), wave.bottom() + 2.0),
-                pos2(
-                    inside.right(),
-                    wave.bottom()
-                        + if assets.phrases.is_empty() {
-                            22.0
-                        } else {
-                            16.0
-                        },
-                ),
-            ),
-            times,
-            if assets.phrases.is_empty() {
-                13.0
+            if next_cue.is_some() {
+                times_rect.with_max_x(times_rect.left() + 124.0)
             } else {
-                11.0
+                times_rect
             },
+            times,
+            if compact { 11.0 } else { 13.0 },
             MUTED,
         );
+        if let Some(next_cue) = next_cue {
+            theme::text(
+                &painter,
+                times_rect.with_min_x(times_rect.left() + 128.0),
+                next_cue,
+                11.0,
+                TEXT,
+            );
+        }
         phrase_ui::paint_summary(
             &painter,
             Rect::from_min_max(

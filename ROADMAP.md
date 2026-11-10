@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 186 tests (the opt-in
+Everything below is built. The latest build passed 189 tests (the opt-in
 hardware-audio test skipped). What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -32,8 +32,8 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
 
 - Cards, Waveforms and a focused view, two-player comparison, custom pairs, and
   four cards when the display has room.
-- Smooth estimated playheads; phrase strips with the current section, and a
-  bars/beats countdown to the next phrase.
+- Smooth estimated playheads; phrase strips with the current section, and
+  bars/beats countdowns to the next phrase and the next cue.
 - Loading with session and source checks, and confirmation before replacing a
   playing track.
 

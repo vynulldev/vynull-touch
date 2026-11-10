@@ -65,26 +65,7 @@ impl BeatGrid {
     /// Distance in saved beat coordinates, including fractional beats and tempo
     /// changes. Unlike seeking, a countdown must not extrapolate beyond the grid.
     pub fn beats_between(&self, start: f64, end: f64) -> Option<f64> {
-        if !start.is_finite() || !end.is_finite() || start < 0.0 || end < start {
-            return None;
-        }
-        let coordinate = |seconds: f64| {
-            if self.beats.len() < 2
-                || seconds < self.beats.first()?.seconds()
-                || seconds > self.beats.last()?.seconds()
-            {
-                return None;
-            }
-            let index = self
-                .beats
-                .partition_point(|beat| beat.seconds() <= seconds)
-                .saturating_sub(1)
-                .min(self.beats.len() - 2);
-            let left = self.beats[index].seconds();
-            let right = self.beats[index + 1].seconds();
-            Some(index as f64 + (seconds - left) / (right - left))
-        };
-        Some(coordinate(end)? - coordinate(start)?)
+        beats_between(&self.beats, start, end, |beat| beat.seconds())
     }
 
     /// One-based saved beat index and authoritative position within its bar.
@@ -218,6 +199,35 @@ impl BeatGrid {
         }
         beats.iter().step_by(stride)
     }
+}
+
+/// Count intervals in validated, increasing saved beat timestamps. Bar phase is
+/// not needed for distance, so external player analysis can use this as well.
+pub(crate) fn beats_between<T>(
+    beats: &[T],
+    start: f64,
+    end: f64,
+    seconds: impl Fn(&T) -> f64,
+) -> Option<f64> {
+    if !start.is_finite() || !end.is_finite() || start < 0.0 || end < start {
+        return None;
+    }
+    let coordinate = |position: f64| {
+        if beats.len() < 2
+            || position < seconds(beats.first()?)
+            || position > seconds(beats.last()?)
+        {
+            return None;
+        }
+        let index = beats
+            .partition_point(|beat| seconds(beat) <= position)
+            .saturating_sub(1)
+            .min(beats.len() - 2);
+        let left = seconds(&beats[index]);
+        let right = seconds(&beats[index + 1]);
+        Some(index as f64 + (position - left) / (right - left))
+    };
+    Some(coordinate(end)? - coordinate(start)?)
 }
 
 #[cfg(test)]

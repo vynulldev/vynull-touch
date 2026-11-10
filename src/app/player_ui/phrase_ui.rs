@@ -40,22 +40,7 @@ fn summary(assets: &Assets, position: Option<f64>) -> String {
     let distance = assets
         .grid
         .beats_between(position, next.start())
-        .map(|beats| {
-            // Round up to the upcoming beat, with only a floating-point epsilon.
-            // Phrase boundaries themselves retain their exact saved timestamps.
-            let beats = ((beats - 1e-7).ceil() as usize).max(1);
-            let bars = beats / 4;
-            let beats = beats % 4;
-            match (bars, beats) {
-                (0, beats) => format!("{beats} {}", if beats == 1 { "beat" } else { "beats" }),
-                (bars, 0) => format!("{bars} {}", if bars == 1 { "bar" } else { "bars" }),
-                (bars, beats) => format!(
-                    "{bars} {} {beats} {}",
-                    if bars == 1 { "bar" } else { "bars" },
-                    if beats == 1 { "beat" } else { "beats" }
-                ),
-            }
-        });
+        .map(timing::bars_and_beats);
     let upcoming = match distance {
         Some(distance) => format!("{} in {distance}", next.label()),
         None => format!("Next {}", next.label()),

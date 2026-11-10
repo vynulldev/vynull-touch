@@ -292,13 +292,26 @@ impl App {
             });
         let times =
             Rect::from_min_size(pos2(inside.right() - 68.0, inside.top()), vec2(68.0, 26.0));
+        let next_cue = timing::cue_summary(&deck.assets, deck.position, false);
+        let state = focus::player_state(
+            self.fresh(),
+            self.linked,
+            deck.peer.as_ref(),
+            deck.player.as_ref(),
+        );
         theme::text(&p, times, remaining, 16.0, TEXT);
         theme::text(
             &p,
             times
                 .translate(vec2(0.0, 26.0))
                 .with_max_y(inside.top() + 48.0),
-            if master { "MASTER" } else { "REMAIN" },
+            if next_cue.is_some() {
+                state
+            } else if master {
+                "MASTER"
+            } else {
+                "REMAIN"
+            },
             10.0,
             if master { ORANGE } else { MUTED },
         );
@@ -353,18 +366,18 @@ impl App {
             11.0,
             MUTED,
         );
-        let state = focus::player_state(
-            self.fresh(),
-            self.linked,
-            deck.peer.as_ref(),
-            deck.player.as_ref(),
-        );
         theme::text(
             &p,
             footer.with_min_x(footer.left() + 80.0),
-            state,
-            10.0,
-            if deck.live { GREEN } else { MUTED },
+            next_cue.as_deref().unwrap_or(state),
+            11.0,
+            if next_cue.is_some() {
+                TEXT
+            } else if deck.live {
+                GREEN
+            } else {
+                MUTED
+            },
         );
         let open = ui.interact(
             Rect::from_min_max(pos2(rect.left(), metadata.bottom()), rect.max),

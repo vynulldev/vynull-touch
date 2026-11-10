@@ -79,8 +79,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - Playheads are estimated from Link status between updates.
   Times marked **~** are estimates; stale status hides the live playhead and
   disables loading.
-- Phrase strips with the current section, and a bars/beats countdown to the next
-  phrase.
+- Phrase strips with the current section, and bars/beats countdowns to the next
+  phrase and the next cue.
 - **Load to…** sends a track to a player after checking the library, track and
   player again. Replacing a playing track asks first; the load is confirmed from
   the player's status.

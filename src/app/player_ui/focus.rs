@@ -216,30 +216,19 @@ impl App {
             18.0,
             TEXT,
         );
-        let next = position.and_then(|pos| next_cue(&assets, pos));
-        let hint = next.map_or_else(
-            || {
-                if position.is_none() {
-                    if waveform_position.is_some_and(|pos| pos > 0.0) {
-                        "Waveform at last known position".into()
-                    } else {
-                        "Track start · waiting for player timing".into()
-                    }
-                } else if assets.beats.is_empty() {
-                    "Estimated from BPM · no saved grid".into()
+        let hint = timing::cue_summary(&assets, position, true).unwrap_or_else(|| {
+            if position.is_none() {
+                if waveform_position.is_some_and(|pos| pos > 0.0) {
+                    "Waveform at last known position".into()
                 } else {
-                    "Estimated from player beat position".into()
+                    "Track start · waiting for player timing".into()
                 }
-            },
-            |(cue, distance)| {
-                format!(
-                    "Next {} · {}   +{}",
-                    crate::cues::slot(cue.number),
-                    cue.label,
-                    time(distance)
-                )
-            },
-        );
+            } else if assets.beats.is_empty() {
+                "Estimated from BPM · no saved grid".into()
+            } else {
+                "Estimated from player beat position".into()
+            }
+        });
         theme::text(
             ui.painter(),
             Rect::from_min_max(times.min + vec2(228.0, 0.0), times.max),
@@ -347,15 +336,6 @@ pub(super) fn player_state<'a>(
 
 pub(super) fn detail_range(position: f64, span: f64) -> Range<f64> {
     (position - span * 0.35)..(position + span * 0.65)
-}
-
-pub(super) fn next_cue(assets: &Assets, position: f64) -> Option<(&Cue, f64)> {
-    assets
-        .cues
-        .iter()
-        .filter(|cue| f64::from(cue.time_ms) / 1000.0 > position)
-        .min_by_key(|cue| cue.time_ms)
-        .map(|cue| (cue, f64::from(cue.time_ms) / 1000.0 - position))
 }
 
 pub(super) fn paint_detail(
@@ -536,8 +516,8 @@ mod tests {
         let range = detail_range(0.0, 16.0);
         assert!(range.start < 0.0 && range.end > 0.0);
         assert_eq!(range.end - range.start, 16.0);
-        assert_eq!(next_cue(&assets, 1.0).unwrap().0.number, 2);
-        assert_eq!(next_cue(&assets, 32.0).unwrap().0.number, 3);
-        assert!(next_cue(&assets, 300.0).is_none());
+        assert_eq!(timing::next_cue(&assets, 1.0).unwrap().0.number, 2);
+        assert_eq!(timing::next_cue(&assets, 32.0).unwrap().0.number, 3);
+        assert!(timing::next_cue(&assets, 300.0).is_none());
     }
 }
