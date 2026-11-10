@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, help='Screenshot destination (default: a new temporary directory, retained after capture)')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
+    parser.add_argument('--grid-editor-only', action='store_true', help='Capture the beat-grid editor using fictional demo tracks')
     parser.add_argument('--audio-settings-only', action='store_true', help='Capture audio output settings and the slimmer Inspect toolbar')
     parser.add_argument('--styles-only', action='store_true', help='Capture the four waveform palettes')
     parser.add_argument('--library-only', action='store_true', help='Capture the library table, sorting, playlists and search')
@@ -58,6 +59,9 @@ def main():
                 from capture_tag_fixture import tag_fixture
                 with tag_fixture(playlist_icons=args.playlist_icons_only) as origin:
                     capture_interactions(env, output_dir, tag_picker_only=args.tag_picker_only, tag_manager_only=args.tag_manager_only, playlist_icons_only=args.playlist_icons_only, server_origin=origin)
+                return
+            if args.grid_editor_only:
+                capture_interactions(env, output_dir, grid_editor_only=True)
                 return
             if args.audio_settings_only:
                 capture_interactions(env, output_dir, audio_settings_only=True)
@@ -117,7 +121,7 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -196,6 +200,22 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             report = subprocess.check_output(['xclip', '-o', '-selection', 'clipboard'], env=env, text=True, timeout=5)
             assert report.startswith('Vynull Touch diagnostic report'), 'System clipboard did not receive the report'
             assert 'Build:' in report and 'SERVER LOG SNAPSHOT' in report
+
+        if grid_editor_only:
+            click(300, 141)
+            click(610, 412)
+            click(720, 412)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'grid-editor-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(225, 378)
+            capture('grid-bpm-keypad')
+            return
 
         if audio_settings_only:
             click(300, 141)

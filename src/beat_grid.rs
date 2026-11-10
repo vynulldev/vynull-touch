@@ -22,13 +22,24 @@ impl Beat {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct BeatGrid {
     beats: Vec<Beat>,
     downbeats: Vec<Beat>,
 }
 
 impl BeatGrid {
+    pub fn beats(&self) -> &[Beat] {
+        &self.beats
+    }
+
+    pub fn matches(&self, other: &Self) -> bool {
+        self.beats.len() == other.beats.len()
+            && self.beats.iter().zip(&other.beats).all(|(a, b)| {
+                (a.time_ms - b.time_ms).abs() < 0.01 && a.beat_in_bar == b.beat_in_bar
+            })
+    }
+
     pub fn new(analysis: TrackAnalysis, expected: u32) -> Result<Self, &'static str> {
         if analysis.track_id != expected {
             return Err("Invalid beat grid track identity");

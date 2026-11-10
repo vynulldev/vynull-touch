@@ -19,6 +19,7 @@ mod connection;
 mod cue_ui;
 mod diag_ui;
 mod edit_ui;
+mod grid_ui;
 mod inspect_cursor;
 mod inspect_header;
 mod library_ui;
@@ -86,6 +87,8 @@ pub struct App {
     detail: Option<Detail>,
     detail_busy: bool,
     cue_editor: Option<crate::cues::Editor>,
+    grid_editor: Option<grid_ui::Editor>,
+    demo_grids: std::collections::HashMap<u32, crate::grid_edit::Snapshot>,
     cue_quick: Option<crate::cues::Editor>,
     cue_press: Option<cue_ui::PadPress>,
     loop_controls: bool,
@@ -187,6 +190,8 @@ impl App {
             detail: None,
             detail_busy: false,
             cue_editor: None,
+            grid_editor: None,
+            demo_grids: Default::default(),
             cue_quick: None,
             cue_press: None,
             loop_controls: false,
@@ -259,6 +264,8 @@ impl App {
         self.cue_quick = None;
         self.cue_press = None;
         self.demo_cues.clear();
+        self.demo_grids.clear();
+        self.grid_editor = None;
         self.deck_cache = None;
         self.diagnostics = diag_ui::Diagnostics::default();
         self.demo_decks.clear();
@@ -380,6 +387,7 @@ impl App {
         }
     }
     fn inspect(&mut self, track: Track) {
+        self.grid_editor = None;
         if self.page != Page::Detail {
             // Browsing and player-view state stays in place while inspecting.
             // Opening another track within Inspect must retain the original page.
@@ -405,6 +413,9 @@ impl App {
         self.detail = None;
         if self.options.demo {
             self.detail = Some(demo::detail(&track));
+            if let Some(saved) = self.demo_grids.get(&track.id) {
+                self.detail.as_mut().unwrap().beat_grid = saved.grid.clone();
+            }
             if let Some(cues) = self.demo_cues.get(&track.id) {
                 self.detail.as_mut().unwrap().cues = cues.clone();
             }
@@ -560,6 +571,15 @@ impl App {
                         Err(e) => error = Some(e),
                     }
                 }
+                Event::Grid(id, token, edited, result)
+                    if token == self.token
+                        && self.detail_track.as_ref().is_some_and(|t| t.id == id) =>
+                {
+                    if let Err(e) = &result {
+                        error = Some(e.clone());
+                    }
+                    self.grid_reply(edited, result);
+                }
                 Event::Cues(id, token, written, result)
                     if token == self.token
                         && self.detail_track.as_ref().is_some_and(|t| t.id == id) =>
@@ -705,7 +725,11 @@ impl App {
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let active = self.navigation_page() == Page::Settings;
-                        let settings = theme::button(ui, "", vec2(48.0, 48.0), active)
+                        let settings = ui
+                            .add_enabled_ui(!self.grid_pending(), |ui| {
+                                theme::button(ui, "", vec2(48.0, 48.0), active)
+                            })
+                            .inner
                             .on_hover_text("Settings");
                         settings.widget_info(|| {
                             WidgetInfo::labeled(Role::Button, ui.is_enabled(), "Settings")
@@ -782,39 +806,42 @@ impl App {
                     .inner_margin(Margin::symmetric(6, 12)),
             )
             .show(root, |ui| {
-                for (page, label, icon) in [
-                    (Page::Players, "Players", 2),
-                    (Page::Collection, "Collection", 0),
-                    (Page::Playlists, "Playlists", 1),
-                ]
-                .iter()
-                {
-                    let active = self.navigation_page() == *page;
-                    let (rect, response) = ui.allocate_exact_size(vec2(76.0, 68.0), Sense::click());
-                    if active || response.hovered() {
-                        ui.painter()
-                            .rect_filled(rect, 8, if active { SELECTED } else { CARD });
+                ui.add_enabled_ui(!self.grid_pending(), |ui| {
+                    for (page, label, icon) in [
+                        (Page::Players, "Players", 2),
+                        (Page::Collection, "Collection", 0),
+                        (Page::Playlists, "Playlists", 1),
+                    ]
+                    .iter()
+                    {
+                        let active = self.navigation_page() == *page;
+                        let (rect, response) =
+                            ui.allocate_exact_size(vec2(76.0, 68.0), Sense::click());
+                        if active || response.hovered() {
+                            ui.painter()
+                                .rect_filled(rect, 8, if active { SELECTED } else { CARD });
+                        }
+                        let color = if active { ORANGE } else { MUTED };
+                        theme::icon(
+                            ui.painter(),
+                            rect.center_top() + vec2(0.0, 23.0),
+                            *icon,
+                            color,
+                        );
+                        ui.painter().text(
+                            rect.center_bottom() - vec2(0.0, 16.0),
+                            Align2::CENTER_CENTER,
+                            label,
+                            FontId::proportional(12.0),
+                            color,
+                        );
+                        self.hit(label, rect);
+                        if response.clicked() {
+                            self.page = *page;
+                            self.keyboard = None;
+                        }
                     }
-                    let color = if active { ORANGE } else { MUTED };
-                    theme::icon(
-                        ui.painter(),
-                        rect.center_top() + vec2(0.0, 23.0),
-                        *icon,
-                        color,
-                    );
-                    ui.painter().text(
-                        rect.center_bottom() - vec2(0.0, 16.0),
-                        Align2::CENTER_CENTER,
-                        label,
-                        FontId::proportional(12.0),
-                        color,
-                    );
-                    self.hit(label, rect);
-                    if response.clicked() {
-                        self.page = *page;
-                        self.keyboard = None;
-                    }
-                }
+                });
             });
     }
 
@@ -883,7 +910,9 @@ impl App {
                     .inner_margin(Margin::symmetric(12, 3)),
             )
             .show(root, |ui| {
-                let message = if self.page == Page::Detail && !self.loop_error.is_empty() {
+                let message = if self.grid_editing() {
+                    self.grid_status()
+                } else if self.page == Page::Detail && !self.loop_error.is_empty() {
                     self.loop_error.clone()
                 } else if self.page == Page::Detail && self.cue_quick.is_some() {
                     "Saving and verifying hot cue…".to_owned()
@@ -944,6 +973,10 @@ impl App {
         if self.cue_editor.is_some() {
             self.cue_modal(&ctx);
         }
+        let grid_open = self.grid_editing();
+        if grid_open {
+            self.grid_keyboard(&ctx);
+        }
         if self.deck_picker.is_some() && self.page == Page::Players {
             self.player_pair_modal(&ctx);
         }
@@ -962,7 +995,7 @@ impl App {
         if editing {
             self.edit_dialog(&ctx);
         }
-        if !editing && !popup_open && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if !editing && !grid_open && !popup_open && ctx.input(|i| i.key_pressed(Key::Escape)) {
             if self.sort_dialog.is_some() {
                 self.sort_dialog = None;
             } else if self.filter_dialog.is_some() {
@@ -996,6 +1029,7 @@ impl App {
             }
         }
         if self.page != Page::Detail {
+            self.finish_grid_editing();
             self.inspect_origin = None;
             self.preview.stop();
             self.cue_press = None;
@@ -1239,8 +1273,16 @@ impl App {
             .resizable(false)
             .show_separator_line(false)
             .frame(Frame::new().fill(BG))
-            .show(ui, |ui| self.inspect_actions(ui, &track));
+            .show(ui, |ui| {
+                if self.grid_editing() {
+                    self.grid_actions(ui, &track);
+                } else {
+                    self.inspect_actions(ui, &track);
+                }
+            });
+        let grid_editing = self.grid_editing();
         ScrollArea::vertical()
+            .id_salt(("inspect-body", grid_editing))
             .scroll_source(scroll_area::ScrollSource::ALL)
             .auto_shrink([false, false])
             .max_height((ui.available_height() - gap).max(0.0))
@@ -1252,7 +1294,8 @@ impl App {
                     Sense::click_and_drag(),
                 );
                 self.hit("Full waveform", overview);
-                if (overview_response.clicked() || overview_response.dragged())
+                if !self.grid_pending()
+                    && (overview_response.clicked() || overview_response.dragged())
                     && let Some(pointer) = overview_response.interact_pointer_pos()
                 {
                     self.wave_drag_start = None;
@@ -1271,7 +1314,8 @@ impl App {
                     Sense::click_and_drag(),
                 );
                 self.hit("Detail waveform", rect);
-                if (response.clicked() || response.dragged())
+                if !self.grid_pending()
+                    && (response.clicked() || response.dragged())
                     && let Some(pointer) = response.interact_pointer_pos()
                 {
                     let window = self.waveform_window(&track);
@@ -1317,7 +1361,12 @@ impl App {
                     rect,
                     window.clone(),
                     &format!(
-                        "DETAIL · {:.0}×{}",
+                        "{} · {:.0}×{}",
+                        if grid_editing {
+                            "EDIT GRID · FREE POSITION"
+                        } else {
+                            "DETAIL"
+                        },
                         self.zoom,
                         if self.detail.is_some() && !grid_available {
                             " · No beat grid"
@@ -1329,108 +1378,116 @@ impl App {
                 );
                 self.paint_inspect_cursor(ui.painter(), overview, 0.0..duration.max(1.0), false);
                 self.paint_inspect_cursor(ui.painter(), rect, window, true);
-                self.hot_cue_pads(ui, duration);
-                if self.loop_controls {
-                    self.loop_toolbar(ui, duration);
+                if grid_editing {
+                    self.grid_controls(ui);
                 } else {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!("{} / {}", time(self.position), time(duration)))
+                    self.hot_cue_pads(ui, duration);
+                    if self.loop_controls {
+                        self.loop_toolbar(ui, duration);
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} / {}",
+                                    time(self.position),
+                                    time(duration)
+                                ))
                                 .monospace()
                                 .size(14.0),
-                        );
-                        self.beat_jump_controls(ui, duration);
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            let zoom_in = theme::button(ui, "+", vec2(48.0, 48.0), false);
-                            self.hit("Zoom in", zoom_in.rect);
-                            if zoom_in.clicked() {
-                                self.set_zoom((self.zoom * 2.0).min(256.0));
-                            }
-                            let zoom_out = theme::button(ui, "−", vec2(48.0, 48.0), false);
-                            self.hit("Zoom out", zoom_out.rect);
-                            if zoom_out.clicked() {
-                                self.set_zoom((self.zoom / 2.0).max(1.0));
-                            }
-                            let fit = theme::button(ui, "Fit", vec2(56.0, 48.0), false);
-                            self.hit("Fit waveform", fit.rect);
-                            if fit.clicked() {
-                                self.set_zoom(1.0);
-                            }
-                            let grid = ui
-                                .add_enabled_ui(grid_available, |ui| {
-                                    theme::button(ui, "Grid", vec2(72.0, 48.0), self.show_grid)
-                                })
-                                .inner
-                                .on_hover_text(if grid_available {
-                                    "Show beat lines and highlight each bar's first beat"
-                                } else {
-                                    "No beat grid available for this track"
-                                });
-                            self.hit("Grid", grid.rect);
-                            if grid.clicked() {
-                                self.show_grid = !self.show_grid;
-                            }
-                            self.quantize_button(ui, duration);
-                        });
-                    });
-                }
-                let memory_cues: Vec<_> = self
-                    .detail
-                    .as_ref()
-                    .map(|d| d.cues.iter().filter(|c| c.number > 8).cloned().collect())
-                    .unwrap_or_default();
-                if !memory_cues.is_empty() {
-                    ui.horizontal_wrapped(|ui| {
-                        for cue in memory_cues {
-                            let slot = crate::cues::slot(cue.number);
-                            let label = format!(
-                                "{}  {}{}",
-                                slot,
-                                time(f64::from(cue.time_ms) / 1000.0),
-                                if cue.kind == "loop"
-                                    && i64::from(cue.loop_ms) > i64::from(cue.time_ms)
-                                {
-                                    " ↻"
-                                } else {
-                                    ""
+                            );
+                            self.beat_jump_controls(ui, duration);
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                let zoom_in = theme::button(ui, "+", vec2(48.0, 48.0), false);
+                                self.hit("Zoom in", zoom_in.rect);
+                                if zoom_in.clicked() {
+                                    self.set_zoom((self.zoom * 2.0).min(256.0));
                                 }
-                            );
-                            let (pad, response) =
-                                ui.allocate_exact_size(vec2(122.0, 48.0), Sense::click());
-                            let color = crate::cues::color(cue.color_id);
-                            ui.painter().rect_filled(pad, 8, color.gamma_multiply(0.13));
-                            theme::text(
-                                ui.painter(),
-                                Rect::from_min_size(
-                                    pad.min + vec2(9.0, 4.0),
-                                    vec2(
-                                        pad.width() - 18.0,
-                                        if cue.label.is_empty() { 40.0 } else { 22.0 },
-                                    ),
-                                ),
-                                label,
-                                14.0,
-                                color,
-                            );
-                            if !cue.label.is_empty() {
+                                let zoom_out = theme::button(ui, "−", vec2(48.0, 48.0), false);
+                                self.hit("Zoom out", zoom_out.rect);
+                                if zoom_out.clicked() {
+                                    self.set_zoom((self.zoom / 2.0).max(1.0));
+                                }
+                                let fit = theme::button(ui, "Fit", vec2(56.0, 48.0), false);
+                                self.hit("Fit waveform", fit.rect);
+                                if fit.clicked() {
+                                    self.set_zoom(1.0);
+                                }
+                                let grid = ui
+                                    .add_enabled_ui(grid_available, |ui| {
+                                        theme::button(ui, "Grid", vec2(72.0, 48.0), self.show_grid)
+                                    })
+                                    .inner
+                                    .on_hover_text(if grid_available {
+                                        "Show beat lines and highlight each bar's first beat"
+                                    } else {
+                                        "No beat grid available for this track"
+                                    });
+                                self.hit("Grid", grid.rect);
+                                if grid.clicked() {
+                                    self.show_grid = !self.show_grid;
+                                }
+                                self.quantize_button(ui, duration);
+                            });
+                        });
+                    }
+                    let memory_cues: Vec<_> = self
+                        .detail
+                        .as_ref()
+                        .map(|d| d.cues.iter().filter(|c| c.number > 8).cloned().collect())
+                        .unwrap_or_default();
+                    if !memory_cues.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            for cue in memory_cues {
+                                let slot = crate::cues::slot(cue.number);
+                                let label = format!(
+                                    "{}  {}{}",
+                                    slot,
+                                    time(f64::from(cue.time_ms) / 1000.0),
+                                    if cue.kind == "loop"
+                                        && i64::from(cue.loop_ms) > i64::from(cue.time_ms)
+                                    {
+                                        " ↻"
+                                    } else {
+                                        ""
+                                    }
+                                );
+                                let (pad, response) =
+                                    ui.allocate_exact_size(vec2(122.0, 48.0), Sense::click());
+                                let color = crate::cues::color(cue.color_id);
+                                ui.painter().rect_filled(pad, 8, color.gamma_multiply(0.13));
                                 theme::text(
                                     ui.painter(),
                                     Rect::from_min_size(
-                                        pad.min + vec2(9.0, 27.0),
-                                        vec2(pad.width() - 18.0, 16.0),
+                                        pad.min + vec2(9.0, 4.0),
+                                        vec2(
+                                            pad.width() - 18.0,
+                                            if cue.label.is_empty() { 40.0 } else { 22.0 },
+                                        ),
                                     ),
-                                    &cue.label,
-                                    11.0,
-                                    TEXT,
+                                    label,
+                                    14.0,
+                                    color,
                                 );
+                                if !cue.label.is_empty() {
+                                    theme::text(
+                                        ui.painter(),
+                                        Rect::from_min_size(
+                                            pad.min + vec2(9.0, 27.0),
+                                            vec2(pad.width() - 18.0, 16.0),
+                                        ),
+                                        &cue.label,
+                                        11.0,
+                                        TEXT,
+                                    );
+                                }
+                                self.hit(&format!("Cue {}", cue.number), response.rect);
+                                if response.clicked() {
+                                    self.position = (f64::from(cue.time_ms) / 1000.0).min(duration);
+                                    self.preview.seek(self.position, false);
+                                }
                             }
-                            self.hit(&format!("Cue {}", cue.number), response.rect);
-                            if response.clicked() {
-                                self.position = (f64::from(cue.time_ms) / 1000.0).min(duration);
-                                self.preview.seek(self.position, false);
-                            }
-                        }
-                    });
+                        });
+                    }
                 }
                 if let Some(error) = &self.preview.state.error {
                     ui.colored_label(ORANGE, error);
@@ -1491,6 +1548,16 @@ impl App {
             self.hit("Loop controls", loops.rect);
             if loops.clicked() {
                 self.loop_controls = !self.loop_controls;
+            }
+            let grid = ui
+                .add_enabled_ui(
+                    self.detail.is_some() && !self.detail_busy && self.cue_quick.is_none(),
+                    |ui| theme::button(ui, "Edit grid", vec2(110.0, 48.0), false),
+                )
+                .inner;
+            self.hit("Edit grid", grid.rect);
+            if grid.clicked() {
+                self.open_grid_editor();
             }
         });
     }

@@ -7,7 +7,7 @@ mod tests;
 impl App {
     pub(super) fn inspect_seek_position(&self, seconds: f64, duration: f64) -> f64 {
         let seconds = seconds.clamp(0.0, duration.max(0.0));
-        if self.inspect_quantize {
+        if self.inspect_quantize && !self.grid_editing() {
             self.detail
                 .as_ref()
                 .and_then(|detail| detail.beat_grid.nearest(seconds, duration))

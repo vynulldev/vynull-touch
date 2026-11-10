@@ -30,7 +30,8 @@ impl App {
     }
 
     pub(super) fn reconnect_session(&mut self, ctx: &Context) {
-        let pending = self.load_busy
+        let pending = self.grid_editor.as_ref().is_some_and(|e| e.pending)
+            || self.load_busy
             || self
                 .editor
                 .as_ref()

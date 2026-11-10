@@ -81,6 +81,10 @@ impl App {
             || self.loading
             || self.detail_busy
             || self.editor.is_some()
+            || self
+                .grid_editor
+                .as_ref()
+                .is_some_and(|e| e.open || e.pending)
     }
 
     pub(super) fn refresh_failed(&mut self, force: bool, error: String) {

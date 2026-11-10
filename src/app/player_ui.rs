@@ -221,6 +221,11 @@ impl App {
                     .entry(track.id)
                     .or_insert_with(|| {
                         let mut a = Assets::demo(track);
+                        if let Some(grid) = self.demo_grids.get(&track.id) {
+                            a.grid = Arc::new(grid.grid.clone());
+                            a.beats = grid.grid.beats().iter().map(|b| b.seconds()).collect();
+                            a.bpm = grid.bpm;
+                        }
                         if let Some(cues) = cues {
                             a.cues = cues;
                         }

@@ -68,6 +68,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
   cues…** moves, labels and colors hot and memory cues
   ([previews](docs/cue-preview-800x480.png), [Inspect](docs/cue-inspect-800x480.png),
   [zoomed out](docs/cue-inspect-fit-1280x800.png)).
+- **Edit grid:** nudge the grid by 0.1–50 ms, set beat 1 at the cursor, or type a
+  BPM. Analysis-locked grids stay read-only.
 - **Back** or Escape returns to wherever Inspect was opened from, with its
   selection, scroll and view intact. Previewing never moves a deck.
 
@@ -107,6 +109,7 @@ in the background.
 - **Background refresh:** track revisions; cue refresh also needs the cue
   revision and batch endpoints. Without them, use **Refresh**.
 - **Cue labels and confirmed saves:** Vynull #175 and #170.
+- **Grid editing:** `/api/tracks/{id}/beats` and `/api/analysis/beatgrid/adjust`.
 - **Preview audio:** `/api/audio/{id}?transcode=1`, which needs ffmpeg on the
   Vynull machine.
 - **Optional:** phrases, 3-band waveforms, `/api/version` and `/api/diag/logs`.

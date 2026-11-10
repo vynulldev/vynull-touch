@@ -19,6 +19,7 @@ use std::{
 };
 pub(crate) mod deck_assets;
 mod editing;
+mod grid;
 pub(crate) mod playlist_counts;
 mod recovery;
 pub(crate) mod refresh;
@@ -52,6 +53,12 @@ pub fn validate_origin(origin: &str) -> Result<Url, String> {
 }
 
 pub enum Command {
+    Grid {
+        track: Box<Track>,
+        token: u64,
+        expected: Option<Box<crate::grid_edit::Snapshot>>,
+        change: Option<crate::grid_edit::Change>,
+    },
     Edit(u64, Box<crate::editing::Request>),
     Playlist(u32, u64),
     Detail(u32, u64),
@@ -76,6 +83,12 @@ pub struct LibrarySnapshot {
 }
 
 pub enum Event {
+    Grid(
+        u32,
+        u64,
+        bool,
+        Result<Box<crate::grid_edit::Snapshot>, String>,
+    ),
     Edit(u64, Result<crate::editing::Reply, String>),
     Connection(Connection),
     Library(Result<LibrarySnapshot, String>),
@@ -250,6 +263,17 @@ impl Worker {
                 match requests.recv_timeout(Duration::from_millis(100)) {
                     Ok(command) => {
                         let event = match command {
+                            Command::Grid {
+                                track,
+                                token,
+                                expected,
+                                change,
+                            } => Event::Grid(
+                                track.id,
+                                token,
+                                change.is_some(),
+                                api.edit_grid(&track, expected.as_deref(), change),
+                            ),
                             Command::Edit(token, request) => Event::Edit(token, api.edit(&request)),
                             Command::Playlist(id, token) => Event::Playlist(
                                 id,

@@ -7,10 +7,16 @@ impl App {
         let height = if compact { 72.0 } else { 96.0 };
         let (header, _) =
             ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
+        let pending = self.grid_pending();
         let button = |ui: &mut Ui, rect, text: &str| {
             ui.place(
                 rect,
-                Button::new(RichText::new(text).color(TEXT))
+                Button::new(RichText::new(text).color(if pending { MUTED } else { TEXT }))
+                    .sense(if pending {
+                        Sense::hover()
+                    } else {
+                        Sense::click()
+                    })
                     .fill(CARD)
                     .corner_radius(8),
             )
@@ -19,10 +25,19 @@ impl App {
             pos2(header.left() + 24.0, header.center().y),
             vec2(48.0, 48.0),
         );
-        let back = button(ui, back_rect, "‹").on_hover_text("Back");
+        let editing_grid = self.grid_editing();
+        let back = button(ui, back_rect, "‹").on_hover_text(if editing_grid {
+            "Finish grid editing"
+        } else {
+            "Back"
+        });
         self.hit("Back", back.rect);
         if back.clicked() {
-            self.leave_inspect();
+            if editing_grid {
+                self.finish_grid_editing();
+            } else {
+                self.leave_inspect();
+            }
         }
 
         let card = Rect::from_min_max(header.min + vec2(56.0, 0.0), header.max);
@@ -135,6 +150,27 @@ impl App {
         self.hit("Inspect BPM", bpm);
         self.hit("Inspect key", key);
 
+        if editing_grid {
+            let badge = edit_rect.union(playlists_rect);
+            p.rect_filled(badge, 8, SELECTED);
+            let text = badge.shrink2(vec2(10.0, 0.0));
+            theme::text(
+                &p,
+                text.with_max_y(text.top() + 24.0),
+                "EDIT GRID · Free positioning",
+                12.0,
+                ORANGE,
+            );
+            theme::text(
+                &p,
+                text.with_min_y(text.top() + 24.0),
+                "Edits save immediately",
+                12.0,
+                MUTED,
+            );
+            self.hit("Grid mode", badge);
+            return;
+        }
         let edit = button(ui, edit_rect, "Edit…").on_hover_text("Edit track");
         self.hit("Edit track", edit.rect);
         if edit.clicked() {

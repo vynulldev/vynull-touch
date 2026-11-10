@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 189 tests (the opt-in
+Everything below is built. The latest build passed 198 tests (the opt-in
 hardware-audio test skipped). What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -27,6 +27,8 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
   zoom and smooth curves at high zoom.
 - Local audio preview, beat jumps, a millisecond cursor readout and Quantize.
 - Hot cues A–H, cue editing and saved loops.
+- Beat-grid editing (nudges, beat 1, a BPM keypad); analysis-locked grids stay
+  read-only.
 
 **Players**
 
@@ -47,8 +49,8 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 
 ## Next steps
 
-1. Walk through the features on the physical touchscreen: navigation,
-   Back and the editors.
+1. Walk through the features on the physical touchscreen: navigation
+   and Back, the editors and grid editing.
 2. Check them against live CDJs: playhead smoothness and countdowns.
 3. Measure performance on the Pi and set budgets from it.
 4. Add recently played history, and document the desktop shortcut and
@@ -62,7 +64,7 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 | Now | 2 Repeatable releases | Done except the shortcut and autostart docs |
 | Next | 3 Player monitoring and diagnostics | Layouts done; timing states, log search and performance pending |
 | Next | 4 Finding the next track | Sorting, filters and Match done; shortlist, history and browsing-state polish pending |
-| Later | 5 Track preparation | Metadata and playlist editors done; grid editor, readback and refresh polish pending |
+| Later | 5 Track preparation | Editors done; readback and refresh polish pending |
 
 Items are checked when built. A milestone is done when its
 criteria are verified on the hardware.
@@ -136,7 +138,8 @@ shortlist at the wrong track.
 - [x] Rating, color and tag edits in Inspect.
 - [x] Tag and category management.
 - [x] Playlist and folder management.
-- [ ] Beat-grid editing (nudges, beat 1, BPM) that respects analysis locks.
+- [x] Beat-grid editing (nudges, beat 1, BPM); analysis-locked grids stay
+  read-only.
 - [ ] Read every edit back and refresh related views; keep drafts on recoverable
   errors and make uncertain saves explicit.
 
@@ -150,6 +153,8 @@ persistence failures, and no edit or preview ever moves a deck.
   playlist tree and the open playlist.
 - A shortlist needs a decision first: kept on this device, or shared as a
   regular Vynull playlist.
+- Vynull's grid endpoints have no atomic multi-step writes or persistence
+  receipts.
 - Recently played history needs Vynull's history identity contract checked.
 
 Missing guarantees like these are Vynull work; a check in the app doesn't make a

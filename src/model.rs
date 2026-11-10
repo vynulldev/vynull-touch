@@ -22,6 +22,7 @@ pub struct Track {
     pub file_path: String,
     pub file_type: String,
     pub file_missing: bool,
+    pub analysis_locked: bool,
     pub art_id: u32,
     pub art_checked: bool,
     #[serde(deserialize_with = "null_vec")]

@@ -9,6 +9,7 @@ mod decks;
 mod demo;
 mod diagnostics;
 mod editing;
+mod grid_edit;
 mod library;
 mod loops;
 mod matching;

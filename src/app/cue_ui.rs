@@ -21,6 +21,10 @@ impl App {
             && (self.options.demo || self.library_session.is_some())
             && self.cue_quick.is_none()
             && self.cue_editor.is_none()
+            && !self
+                .grid_editor
+                .as_ref()
+                .is_some_and(|e| e.open || e.pending)
     }
 
     pub(super) fn open_cue_editor(&mut self) {
@@ -133,6 +137,7 @@ impl App {
                 let saving = pending == Some(number);
                 let enabled = (cue.is_some() || can_edit)
                     && self.cue_editor.is_none()
+                    && !self.grid_editor.as_ref().is_some_and(|e| e.open)
                     && !self.audio_dialog
                     && !self.load_dialog;
                 let color = if saving {
