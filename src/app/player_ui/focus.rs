@@ -358,18 +358,6 @@ pub(super) fn next_cue(assets: &Assets, position: f64) -> Option<(&Cue, f64)> {
         .map(|cue| (cue, f64::from(cue.time_ms) / 1000.0 - position))
 }
 
-fn peak(assets: &Assets, start: f64, end: f64) -> Option<WaveEntry> {
-    let rate = f64::from(assets.sample_rate);
-    let first = (start.max(0.0) * rate).floor() as usize;
-    let last = ((end.max(0.0) * rate).ceil() as usize).min(assets.detail.len());
-    assets
-        .detail
-        .get(first..last)?
-        .iter()
-        .max_by_key(|e| e.h)
-        .copied()
-}
-
 pub(super) fn paint_detail(
     p: &Painter,
     rect: Rect,
@@ -431,27 +419,7 @@ pub(super) fn paint_detail(
     }
     let span = range.end - range.start;
     let x = |seconds: f64| rect.left() + ((seconds - range.start) / span) as f32 * rect.width();
-    let bins = (rect.width() * p.ctx().pixels_per_point())
-        .ceil()
-        .clamp(1.0, 4096.0) as usize;
-    let columns: Vec<_> = (0..bins)
-        .map(|i| {
-            let start = range.start + span * i as f64 / bins as f64;
-            let end = range.start + span * (i + 1) as f64 / bins as f64;
-            let (spectral, bands) = if use_bands {
-                (None, assets.bands.peak(start, end))
-            } else {
-                (peak(assets, start, end), None)
-            };
-            crate::waveform::envelope::Column { spectral, bands }
-        })
-        .collect();
-    let sample_rate = if use_bands {
-        assets.bands.sample_rate
-    } else {
-        assets.sample_rate
-    };
-    crate::waveform::envelope::paint(
+    crate::waveform::detail::paint(
         &p,
         rect.shrink2(vec2(
             0.0,
@@ -462,8 +430,10 @@ pub(super) fn paint_detail(
             },
         )),
         style,
-        &columns,
-        span * f64::from(sample_rate) > bins as f64,
+        &assets.detail,
+        assets.sample_rate,
+        &assets.bands,
+        range.clone(),
     );
     let budget = (rect.width() / 12.0).max(1.0) as usize;
     if !assets.grid.is_empty() {
@@ -561,29 +531,8 @@ pub(super) fn paint_detail(
 mod tests {
     use super::*;
     #[test]
-    fn detail_uses_original_samples_clips_edges_and_finds_upcoming_cues() {
-        let mut assets = Assets::demo(&crate::demo::tracks()[0]);
-        assets.detail = vec![
-            WaveEntry {
-                h: 2,
-                ..Default::default()
-            },
-            WaveEntry {
-                h: 31,
-                ..Default::default()
-            },
-            WaveEntry {
-                h: 4,
-                ..Default::default()
-            },
-        ]
-        .into();
-        assets.sample_rate = 150;
-        assets.overview = vec![WaveEntry::default()];
-        assert_eq!(peak(&assets, 0.0, 0.02).unwrap().h, 31);
-        assert_eq!(peak(&assets, 0.014, 0.02).unwrap().h, 4);
-        assert!(peak(&assets, -2.0, -1.0).is_none());
-        assert!(peak(&assets, 1.0, 2.0).is_none());
+    fn detail_range_includes_track_start_and_finds_upcoming_cues() {
+        let assets = Assets::demo(&crate::demo::tracks()[0]);
         let range = detail_range(0.0, 16.0);
         assert!(range.start < 0.0 && range.end > 0.0);
         assert_eq!(range.end - range.start, 16.0);

@@ -17,12 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output-dir', type=Path, help='Screenshot destination (default: a new temporary directory, retained after capture)')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
+    parser.add_argument('--audio-settings-only', action='store_true', help='Capture audio output settings and the slimmer Inspect toolbar')
     parser.add_argument('--styles-only', action='store_true', help='Capture the four waveform palettes')
     parser.add_argument('--library-only', action='store_true', help='Capture the library table, sorting, playlists and search')
     parser.add_argument('--search-only', action='store_true', help='Capture live search results above the keyboard')
     parser.add_argument('--cue-markers-only', action='store_true', help='Capture hot cue markers and scrolling waveform smoothing')
     parser.add_argument('--inspect-grid-only', action='store_true', help='Capture Inspect grid density at Fit, 8x and 32x zoom')
+    parser.add_argument('--waveform-curves-only', action='store_true', help='Capture detailed waveform contours at high zoom in all palettes')
     parser.add_argument('--player-phrases-only', action='store_true', help='Capture player phrase strips and countdowns in Cards, Waveforms and focus')
     parser.add_argument('--tag-picker-only', action='store_true', help='Capture track tag selection using a read-only fictional local catalog')
     parser.add_argument('--tag-manager-only', action='store_true', help='Capture tag/category management using a read-only fictional local catalog')
@@ -31,6 +34,12 @@ def main():
     parser.add_argument('--beat-jump-only', action='store_true', help='Capture Inspect beat jumps and the size menu')
     parser.add_argument('--inspect-waveforms', '--waveform-overviews', action='store_true', help='Capture Inspect and Players half/full choices and the 3-band override')
     args = parser.parse_args()
+    if args.output_dir is None:
+        output_dir = Path(tempfile.mkdtemp(prefix='vynull-touch-screenshots-'))
+    else:
+        output_dir = args.output_dir.expanduser().resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+    print(f'Screenshots: {output_dir}', flush=True)
     with tempfile.TemporaryDirectory(prefix='vynull-touch-capture-') as tmp:
         read_fd, write_fd = os.pipe()
         server = subprocess.Popen(['Xvfb', '-displayfd', str(write_fd), '-screen', '0', '1280x1080x24', '-nolisten', 'tcp'], pass_fds=(write_fd,), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -48,60 +57,67 @@ def main():
             if args.tag_picker_only or args.tag_manager_only or args.playlist_icons_only:
                 from capture_tag_fixture import tag_fixture
                 with tag_fixture(playlist_icons=args.playlist_icons_only) as origin:
-                    capture_interactions(env, tag_picker_only=args.tag_picker_only, tag_manager_only=args.tag_manager_only, playlist_icons_only=args.playlist_icons_only, server_origin=origin)
+                    capture_interactions(env, output_dir, tag_picker_only=args.tag_picker_only, tag_manager_only=args.tag_manager_only, playlist_icons_only=args.playlist_icons_only, server_origin=origin)
+                return
+            if args.audio_settings_only:
+                capture_interactions(env, output_dir, audio_settings_only=True)
+                return
+            if args.waveform_curves_only:
+                for style in ['auto', 'rgb', 'blue']:
+                    capture_interactions(env, output_dir, inspect_waveform=(style, 'half'), waveform_curves_only=True)
                 return
             if args.inspect_grid_only:
-                capture_interactions(env, inspect_grid_only=True)
+                capture_interactions(env, output_dir, inspect_grid_only=True)
                 return
             if args.player_phrases_only:
-                capture_interactions(env, player_phrases_only=True)
+                capture_interactions(env, output_dir, player_phrases_only=True)
                 return
             if args.cue_markers_only:
                 for style in ['auto', 'rgb', 'blue']:
-                    capture_interactions(env, inspect_waveform=(style, 'half'), cue_markers_only=True)
+                    capture_interactions(env, output_dir, inspect_waveform=(style, 'half'), cue_markers_only=True)
                 return
             if args.search_only:
-                capture_interactions(env, search_only=True)
+                capture_interactions(env, output_dir, search_only=True)
                 return
             if args.beat_jump_only:
-                capture_interactions(env, beat_jump_only=True)
+                capture_interactions(env, output_dir, beat_jump_only=True)
                 return
             if args.load_only:
-                capture_interactions(env, load_only=True)
+                capture_interactions(env, output_dir, load_only=True)
                 return
             if args.library_only:
                 for size in ['800x480', '1024x600', '1280x800']:
-                    subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'collection', '--size', size, '--screenshot', str(ROOT / 'docs' / f'collection-{size}.png')], env=env, check=True, timeout=30)
-                capture_interactions(env, library_only=True)
+                    subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'collection', '--size', size, '--screenshot', str(output_dir / f'collection-{size}.png')], env=env, check=True, timeout=30)
+                capture_interactions(env, output_dir, library_only=True)
                 return
             if args.inspect_waveforms:
                 for choice in [('rgb', 'half'), ('rgb', 'full'), ('blue', 'half'), ('blue', 'full'), ('3band', 'full'), ('auto', 'full')]:
-                    capture_interactions(env, inspect_waveform=choice)
+                    capture_interactions(env, output_dir, inspect_waveform=choice)
                 return
             if args.styles_only:
-                capture_styles(env)
+                capture_styles(env, output_dir)
                 return
             if not args.connection_only:
                 for size in ['800x480', '1024x600']:
-                    subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--size', size, '--screenshot', str(ROOT / 'docs' / f'collection-{size}.png')], env=env, check=True, timeout=30)
-            subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--server', 'http://127.0.0.1:1', '--screenshot', str(ROOT / 'docs' / 'connection-recovery-800x480.png')], env=env, check=True, timeout=30)
+                    subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--size', size, '--screenshot', str(output_dir / f'collection-{size}.png')], env=env, check=True, timeout=30)
+            subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--server', 'http://127.0.0.1:1', '--screenshot', str(output_dir / 'connection-recovery-800x480.png')], env=env, check=True, timeout=30)
             if not args.connection_only:
-                capture_interactions(env)
-                capture_styles(env)
+                capture_interactions(env, output_dir)
+                capture_styles(env, output_dir)
         finally:
             server.terminate()
             server.wait(timeout=5)
 
 
-def capture_styles(env):
+def capture_styles(env, output_dir):
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
     for style in ['auto', 'rgb', '3band', 'blue']:
         settings.write_text(json.dumps({'waveform_style': style}))
-        subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(ROOT / 'docs' / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
+        subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, inspect_grid_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -166,7 +182,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             time.sleep(.2)
 
         def capture(name):
-            subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'{name}-800x480.png')], env=env, check=True, timeout=10)
+            subprocess.run(['import', '-window', window, str(output_dir / f'{name}-800x480.png')], env=env, check=True, timeout=10)
 
         def escape():
             code = xlib.XKeysymToKeycode(display, 0xff1b)
@@ -181,6 +197,23 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             assert report.startswith('Vynull Touch diagnostic report'), 'System clipboard did not receive the report'
             assert 'Build:' in report and 'SERVER LOG SNAPSHOT' in report
 
+        if audio_settings_only:
+            click(300, 141)
+            click(610, 412)
+            capture('inspect-actions')
+            click(760, 26)
+            xtest.XTestFakeMotionEvent(display, 0, 600, 350, 0)
+            for _ in range(16):
+                xtest.XTestFakeButtonEvent(display, 5, 1, 0)
+                xtest.XTestFakeButtonEvent(display, 5, 0, 0)
+            xlib.XFlush(display)
+            time.sleep(.5)
+            capture('settings-audio')
+            click(170, 354)
+            time.sleep(.5)
+            capture('settings-audio-output')
+            return
+
         if playlist_icons_only:
             time.sleep(.4)
             click(40, 260)
@@ -188,7 +221,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.4)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'playlist-icons-{width}x{height}.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'playlist-icons-{width}x{height}.png')], env=env, check=True, timeout=10)
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
             xlib.XFlush(display)
             time.sleep(.3)
@@ -207,7 +240,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.3)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'tag-manager-{width}x{height}.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'tag-manager-{width}x{height}.png')], env=env, check=True, timeout=10)
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
             xlib.XFlush(display)
             time.sleep(.3)
@@ -239,7 +272,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.3)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'tag-picker-{width}x{height}.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'tag-picker-{width}x{height}.png')], env=env, check=True, timeout=10)
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
             xlib.XFlush(display)
             time.sleep(.3)
@@ -267,7 +300,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                     xlib.XResizeWindow(display, int(window, 16), width, height)
                     xlib.XFlush(display)
                     time.sleep(.3)
-                    subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'player-phrases-{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'player-phrases-{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
                 xlib.XResizeWindow(display, int(window, 16), 800, 480)
                 xlib.XFlush(display)
                 time.sleep(.3)
@@ -280,6 +313,31 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             player_sizes('waveforms')
             click(450, 180)
             player_sizes('focus')
+            return
+
+        if waveform_curves_only:
+            click(300, 141)
+            click(610, 412)
+            click(228, 305)  # Cue B, away from the start of the track.
+            for _ in range(5):
+                click(758, 359)  # 8x -> 256x.
+            for width, height in [(800, 480), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.3)
+                subprocess.run(['import', '-window', window, str(output_dir / f'waveform-curves-{style}-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.3)
+            click(45, 95)
+            click(230, 155)
+            for _ in range(3):
+                click(608, 414)  # Focused player: zoom to a four-second window.
+            for width, height in [(800, 480), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.3)
+                subprocess.run(['import', '-window', window, str(output_dir / f'waveform-curves-player-{style}-{width}x{height}.png')], env=env, check=True, timeout=10)
             return
 
         if inspect_grid_only:
@@ -295,7 +353,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), 1280, 800)
                 xlib.XFlush(display)
                 time.sleep(.3)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'inspect-grid-{zoom}-1280x800.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'inspect-grid-{zoom}-1280x800.png')], env=env, check=True, timeout=10)
                 xlib.XResizeWindow(display, int(window, 16), 800, 480)
                 xlib.XFlush(display)
                 time.sleep(.3)
@@ -315,7 +373,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             xlib.XResizeWindow(display, int(window, 16), 1280, 800)
             xlib.XFlush(display)
             time.sleep(.3)
-            subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'cue-inspect-fit{suffix}-1280x800.png')], env=env, check=True, timeout=10)
+            subprocess.run(['import', '-window', window, str(output_dir / f'cue-inspect-fit{suffix}-1280x800.png')], env=env, check=True, timeout=10)
             if style != 'auto':
                 return
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
@@ -343,7 +401,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.3)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'search-results-{width}x{height}.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'search-results-{width}x{height}.png')], env=env, check=True, timeout=10)
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
             xlib.XFlush(display)
             time.sleep(.3)
@@ -369,7 +427,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.3)
-                subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'beat-jump-{width}x{height}.png')], env=env, check=True, timeout=10)
+                subprocess.run(['import', '-window', window, str(output_dir / f'beat-jump-{width}x{height}.png')], env=env, check=True, timeout=10)
             return
 
         if load_only:
@@ -381,7 +439,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             xlib.XResizeWindow(display, int(window, 16), 1024, 600)
             xlib.XFlush(display)
             time.sleep(.3)
-            subprocess.run(['import', '-window', window, str(ROOT / 'docs' / 'load-confirmation-1024x600.png')], env=env, check=True, timeout=10)
+            subprocess.run(['import', '-window', window, str(output_dir / 'load-confirmation-1024x600.png')], env=env, check=True, timeout=10)
             return
 
         if library_only:
@@ -453,7 +511,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
         capture('cue-editor')
         click(125, 375)
         click(228, 305)
-        click(720, 412)
+        click(605, 412)
         click(308, 359)
         capture('loop-preview')
         click(681, 359)
@@ -466,7 +524,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             xlib.XResizeWindow(display, int(window, 16), width, height)
             xlib.XFlush(display)
             time.sleep(.3)
-            subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'players-{width}x{height}.png')], env=env, check=True, timeout=10)
+            subprocess.run(['import', '-window', window, str(output_dir / f'players-{width}x{height}.png')], env=env, check=True, timeout=10)
         xlib.XResizeWindow(display, int(window, 16), 800, 480)
         xlib.XFlush(display)
         time.sleep(.3)
@@ -488,7 +546,7 @@ def capture_interactions(env, inspect_waveform=None, library_only=False, load_on
             xlib.XResizeWindow(display, int(window, 16), width, height)
             xlib.XFlush(display)
             time.sleep(.3)
-            subprocess.run(['import', '-window', window, str(ROOT / 'docs' / f'players-waveforms-{width}x{height}.png')], env=env, check=True, timeout=10)
+            subprocess.run(['import', '-window', window, str(output_dir / f'players-waveforms-{width}x{height}.png')], env=env, check=True, timeout=10)
         xlib.XResizeWindow(display, int(window, 16), 800, 480)
         xlib.XFlush(display)
         time.sleep(.3)

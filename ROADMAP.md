@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 174 tests (the opt-in
+Everything below is built. The latest build passed 186 tests (the opt-in
 hardware-audio test skipped). What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -23,10 +23,9 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
 
 **Inspect**
 
-- Overview and detailed waveforms with the beat grid, phrase strips and
-  remembered zoom.
-- Local audio preview with a choice of output, beat jumps, a millisecond cursor
-  readout and Quantize.
+- Overview and detailed waveforms with the beat grid, phrase strips, remembered
+  zoom and smooth curves at high zoom.
+- Local audio preview, beat jumps, a millisecond cursor readout and Quantize.
 - Hot cues A–H, cue editing and saved loops.
 
 **Players**
@@ -40,7 +39,7 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
 
 **Settings and diagnostics**
 
-- Saved server, startup page and waveform style.
+- Saved server, startup page and waveform style; preview audio output and volume.
 - Diagnostics: status, versions, request errors, logs and a copyable report.
 
 **Releases:** `scripts/release.py` builds natively, checks checksums, installs

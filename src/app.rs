@@ -998,8 +998,10 @@ impl App {
         if self.page != Page::Detail {
             self.inspect_origin = None;
             self.preview.stop();
-            self.audio_dialog = false;
             self.cue_press = None;
+        }
+        if self.page != Page::Settings {
+            self.audio_dialog = false;
         }
         if self.page != Page::Players {
             self.deck_picker = None;
@@ -1476,13 +1478,6 @@ impl App {
                     self.position = 0.0;
                 }
             }
-            let output = theme::button(ui, "Output…", vec2(110.0, 48.0), false);
-            self.hit("Preview output", output.rect);
-            if output.clicked() {
-                self.preview.pause();
-                self.audio_dialog = true;
-                self.scan_audio(ui.ctx());
-            }
             let edit = ui
                 .add_enabled_ui(self.can_edit_cues() && duration > 0.0, |ui| {
                     theme::button(ui, "Edit cues…", vec2(128.0, 48.0), false)
@@ -1552,7 +1547,7 @@ impl App {
             ui.set_width((ctx.content_rect().width() - 64.0).min(560.0));
             ui.heading("Preview output");
             ui.label(
-                RichText::new("Playback is paused while you choose an output.")
+                RichText::new("Choose an output for local track previews.")
                     .size(14.0)
                     .color(MUTED),
             );
@@ -1712,7 +1707,17 @@ impl App {
         let start = range.start;
         let span = range.end - start;
         let rate = f64::from(wave.sample_rate);
-        if use_bands && window.is_some() {
+        if window.is_none() {
+            crate::waveform::detail::paint(
+                &p,
+                rect.shrink2(vec2(0.0, 2.0)),
+                self.waveform_style,
+                &wave.entries,
+                wave.sample_rate,
+                &detail.bands,
+                range.clone(),
+            );
+        } else if use_bands {
             crate::waveform::half_bands(
                 &p,
                 rect.shrink2(vec2(0.0, 2.0)),
@@ -1720,74 +1725,44 @@ impl App {
                 range.clone(),
             );
         } else {
-            // Preserve peaks at the display's physical-pixel resolution, including
-            // scaled displays. Zooming reveals the original 150 Hz detail entries.
+            // Full-track overviews retain peak reduction at physical-pixel resolution.
             let bins = (rect.width() * p.ctx().pixels_per_point())
                 .ceil()
                 .clamp(1.0, 4096.0) as usize;
-            let columns: Vec<_> = (0..bins)
-                .map(|bin| {
-                    let begin = start + bin as f64 / bins as f64 * span;
-                    let end = start + (bin + 1) as f64 / bins as f64 * span;
-                    let (spectral, bands) = if use_bands {
-                        (None, detail.bands.peak(begin, end))
-                    } else {
-                        let a = (begin * rate) as usize;
-                        let b = (end * rate).ceil() as usize;
-                        (
-                            wave.entries
-                                .get(a.min(wave.entries.len())..b.min(wave.entries.len()))
-                                .and_then(|entries| entries.iter().max_by_key(|e| e.h))
-                                .copied(),
-                            None,
-                        )
-                    };
-                    crate::waveform::envelope::Column { spectral, bands }
-                })
-                .collect();
-            if window.is_none() {
-                let sample_rate = if use_bands {
-                    detail.bands.sample_rate
-                } else {
-                    wave.sample_rate
-                };
-                crate::waveform::envelope::paint(
+            for bin in 0..bins {
+                let begin = start + bin as f64 / bins as f64 * span;
+                let end = start + (bin + 1) as f64 / bins as f64 * span;
+                let a = (begin * rate) as usize;
+                let b = (end * rate).ceil() as usize;
+                let spectral = wave
+                    .entries
+                    .get(a.min(wave.entries.len())..b.min(wave.entries.len()))
+                    .and_then(|entries| entries.iter().max_by_key(|e| e.h))
+                    .copied();
+                crate::waveform::column(
                     &p,
-                    rect.shrink2(vec2(0.0, 2.0)),
-                    self.waveform_style,
-                    &columns,
-                    span * f64::from(sample_rate) > bins as f64,
-                );
-            } else {
-                for (bin, column) in columns.into_iter().enumerate() {
-                    crate::waveform::column(
-                        &p,
-                        Rect::from_min_max(
-                            pos2(
-                                rect.left() + bin as f32 * rect.width() / bins as f32,
-                                rect.top() + 2.0,
-                            ),
-                            pos2(
-                                rect.left() + (bin + 1) as f32 * rect.width() / bins as f32,
-                                rect.bottom() - 2.0,
-                            ),
+                    Rect::from_min_max(
+                        pos2(
+                            rect.left() + bin as f32 * rect.width() / bins as f32,
+                            rect.top() + 2.0,
                         ),
-                        self.waveform_style,
-                        if window.is_some() {
-                            if self.waveform_style == crate::waveform::Style::ThreeBand {
-                                crate::waveform::Overview::Half
-                            } else {
-                                self.waveform_overview
-                            }
-                        } else {
-                            crate::waveform::Overview::Full
-                        },
-                        column.spectral,
-                        column.bands,
-                    );
-                }
+                        pos2(
+                            rect.left() + (bin + 1) as f32 * rect.width() / bins as f32,
+                            rect.bottom() - 2.0,
+                        ),
+                    ),
+                    self.waveform_style,
+                    if self.waveform_style == crate::waveform::Style::ThreeBand {
+                        crate::waveform::Overview::Half
+                    } else {
+                        self.waveform_overview
+                    },
+                    spectral,
+                    None,
+                );
             }
         }
+
         if let Some(window) = window {
             let viewport = Rect::from_x_y_ranges(
                 rect.left() + ((window.start - start) / span) as f32 * rect.width()
@@ -2165,6 +2140,43 @@ mod tests {
             assert!(!requests.borrow().playing);
             click(&mut app, &ctx, size, "Back");
             assert!(requests.borrow().track.is_none());
+            app.inspect(app.tracks[0].clone());
+            click(&mut app, &ctx, size, "Preview play");
+            assert!(!app.hits.iter().any(|(name, _)| name == "Preview output"));
+            click(&mut app, &ctx, size, "Setup");
+            assert!(requests.borrow().track.is_none());
+            assert!(!requests.borrow().playing);
+            frame(
+                &mut app,
+                &ctx,
+                size,
+                vec![
+                    eframe::egui::Event::PointerMoved(pos2(600.0, 350.0)),
+                    eframe::egui::Event::MouseWheel {
+                        unit: MouseWheelUnit::Point,
+                        delta: vec2(0.0, -600.0),
+                        phase: TouchPhase::Move,
+                        source: MouseWheelSource::Unknown,
+                        modifiers: Modifiers::NONE,
+                    },
+                ],
+            );
+            for _ in 0..20 {
+                frame(&mut app, &ctx, size, vec![]);
+            }
+            // Keep enumeration pending so this UI check needs no audio hardware.
+            let (_scan_sender, scan_receiver) = std::sync::mpsc::sync_channel(1);
+            app.audio_scan = Some(scan_receiver);
+            click(&mut app, &ctx, size, "Preview output");
+            frame(&mut app, &ctx, size, vec![]);
+            assert!(app.audio_dialog, "the chooser must stay open on Settings");
+            let volume = app.preview.request.volume;
+            click(&mut app, &ctx, size, "Volume −");
+            assert!((requests.borrow().volume - (volume - 0.1)).abs() < 0.001);
+            assert!(requests.borrow().track.is_none());
+            click(&mut app, &ctx, size, "Audio done");
+            assert!(!app.audio_dialog);
+            assert!(app.page == Page::Settings);
         }
     }
 

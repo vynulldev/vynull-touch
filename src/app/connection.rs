@@ -237,6 +237,20 @@ impl App {
                 }).size(12.0).color(MUTED));
                 if !self.connection_error.is_empty() { ui.colored_label(ORANGE, &self.connection_error); }
                 ui.add_space(10.0);
+                ui.label(RichText::new("PREVIEW AUDIO").size(11.0).color(ORANGE));
+                ui.horizontal(|ui| {
+                    let output = theme::button(ui, "Output…", vec2(130.0, 48.0), false);
+                    self.hit("Preview output", output.rect);
+                    if output.clicked() {
+                        self.preview.pause();
+                        self.audio_dialog = true;
+                        self.scan_audio(ui.ctx());
+                    }
+                    let selected = self.preview.request.device.as_ref()
+                        .map_or("System default", |device| device.name.as_str());
+                    ui.add(Label::new(RichText::new(format!("{selected} · {:.0}%", self.preview.request.volume * 100.0)).size(14.0).color(MUTED)).truncate());
+                });
+                ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if theme::button(ui, "Toggle fullscreen", vec2(182.0, 48.0), false).clicked() {
                         let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));

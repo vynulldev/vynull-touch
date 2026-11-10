@@ -47,9 +47,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 
 - Full-track and detailed waveforms with the beat grid, phrase strips (INTRO, UP,
   CHORUS and so on, colored by label), zoom up to 256× and **Fit**.
-- Local audio preview (**Output…** picks the device and volume), a millisecond
-  cursor readout, **Quantize**, beat jumps of 1–32 beats, and beat loops with
-  **½ / ×2**.
+- Local audio preview, a millisecond cursor readout, **Quantize**, beat jumps of
+  1–32 beats, and beat loops with **½ / ×2**.
 - Hot cues A–H: tap an empty pad to set one, tap to jump, hold to edit. **Edit
   cues…** moves, labels and colors hot and memory cues.
 - **Back** or Escape returns to wherever Inspect was opened from, with its
@@ -72,7 +71,7 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 **Settings**
 
 - Server, startup tab, waveform style (Auto, RGB, 3-band, Blue) and full-track
-  shape.
+  shape, preview audio output and volume.
 - **Diagnostics:** status, versions, request errors, the Vynull log, and a report
   to copy.
 
@@ -160,10 +159,11 @@ VYNULL_AUDIO_TEST_ORIGIN=http://127.0.0.1:9443 VYNULL_AUDIO_TEST_TRACK=123 \
   cargo test --locked live_preview_play_pause_seek_and_end -- --ignored --nocapture
 ```
 
-`python3 scripts/capture.py` captures native screenshots of the demo into `docs/`
-on a private Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and
-ImageMagick), and `--help` lists a capture for each feature. The script never
-touches real players or a real library.
+`python3 scripts/capture.py` captures native screenshots of the demo on a private
+Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and ImageMagick), and
+`--help` lists a capture for each feature. Screenshots go to a new temporary
+folder unless you pass `--output-dir`; the script never touches real players or
+a real library.
 
 Library requests, player status, artwork, deck analysis, preview audio and logs
 each run on their own bounded worker, so a slow request never stalls the deck

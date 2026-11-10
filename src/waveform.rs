@@ -3,6 +3,7 @@ use crate::model::WaveEntry;
 use eframe::egui::{Color32, Painter, Rect, pos2};
 use serde::{Deserialize, Serialize};
 
+pub mod detail;
 pub mod envelope;
 pub mod markers;
 

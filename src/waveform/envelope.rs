@@ -10,36 +10,38 @@ pub struct Column {
 }
 
 #[derive(Clone, Copy, Default)]
-struct Layer {
-    amplitude: f32,
-    color: Color32,
+pub(super) struct Layer {
+    pub amplitude: f32,
+    pub color: Color32,
+}
+
+pub(super) fn sample(column: Column, style: Style) -> [Layer; 3] {
+    let mut layers = [Layer::default(); 3];
+    if style.uses_bands(column.bands.is_some()) {
+        let bands = column.bands.unwrap();
+        for (layer, (height, color)) in
+            layers
+                .iter_mut()
+                .zip([(bands.bass, BASS), (bands.mid, MID), (bands.high, HIGH)])
+        {
+            *layer = Layer {
+                amplitude: f32::from(height) / 255.0,
+                color,
+            };
+        }
+    } else if let Some(entry) = column.spectral {
+        layers[0] = Layer {
+            amplitude: (f32::from(entry.h) / 31.0).min(1.0),
+            color: spectral_color(entry, style),
+        };
+    }
+    layers
 }
 
 fn layers(columns: &[Column], style: Style, soften: bool) -> Vec<[Layer; 3]> {
     let mut samples: Vec<_> = columns
         .iter()
-        .map(|column| {
-            let mut layers = [Layer::default(); 3];
-            if style.uses_bands(column.bands.is_some()) {
-                let bands = column.bands.unwrap();
-                for (layer, (height, color)) in layers.iter_mut().zip([
-                    (bands.bass, BASS),
-                    (bands.mid, MID),
-                    (bands.high, HIGH),
-                ]) {
-                    *layer = Layer {
-                        amplitude: f32::from(height) / 255.0,
-                        color,
-                    };
-                }
-            } else if let Some(entry) = column.spectral {
-                layers[0] = Layer {
-                    amplitude: (f32::from(entry.h) / 31.0).min(1.0),
-                    color: spectral_color(entry, style),
-                };
-            }
-            layers
-        })
+        .map(|column| sample(*column, style))
         .collect();
     if soften && samples.len() > 2 {
         let original = samples.clone();
@@ -75,26 +77,35 @@ pub fn paint(p: &Painter, rect: Rect, style: Style, columns: &[Column], soften: 
         return;
     }
     let samples = layers(columns, style, soften);
+    let count = samples.len();
+    let points: Vec<_> = (0..count + 2)
+        .map(|i| {
+            let index = i.saturating_sub(1).min(count - 1);
+            let x = match i {
+                0 => rect.left(),
+                n if n == count + 1 => rect.right(),
+                _ => rect.left() + (index as f32 + 0.5) * rect.width() / count as f32,
+            };
+            (x, samples[index])
+        })
+        .collect();
+    paint_samples(p, rect, &points);
+}
+
+pub(super) fn paint_samples(p: &Painter, rect: Rect, samples: &[(f32, [Layer; 3])]) {
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let feather = 0.5 / p.ctx().pixels_per_point();
-    let count = samples.len();
     for layer in 0..3 {
-        if samples.iter().all(|sample| sample[layer].amplitude == 0.0) {
+        if samples
+            .iter()
+            .all(|(_, sample)| sample[layer].amplitude == 0.0)
+        {
             continue;
         }
         let mut mesh = Mesh::default();
-        // Duplicate the first/last sample at the rectangle's edge. Interior
-        // samples are at bin centers, keeping the original time mapping.
-        let points: Vec<_> = (0..count + 2)
-            .map(|i| {
-                let index = i.saturating_sub(1).min(count - 1);
-                let x = match i {
-                    0 => rect.left(),
-                    n if n == count + 1 => rect.right(),
-                    _ => rect.left() + (index as f32 + 0.5) * rect.width() / count as f32,
-                };
-                (x, samples[index][layer])
-            })
+        let points: Vec<_> = samples
+            .iter()
+            .map(|(x, sample)| (*x, sample[layer]))
             .collect();
         for (i, &(x, sample)) in points.iter().enumerate() {
             let half = sample.amplitude * rect.height() * 0.5;
