@@ -74,7 +74,7 @@ fn inspect_phrases_align_with_both_waveforms_and_remain_touch_seekable() {
                     .iter()
                     .find_map(|s| match &s.shape {
                         Shape::Rect(r)
-                            if r.fill == Color32::from_rgb(255, 106, 0)
+                            if r.fill == Color32::from_rgb(0x78, 0xc3, 0x7d)
                                 && strip.contains_rect(r.rect) =>
                         {
                             Some(r.rect)

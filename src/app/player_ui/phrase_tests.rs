@@ -189,7 +189,7 @@ fn player_phrases_align_in_every_view_and_hide_live_countdowns_without_valid_tim
                         .iter()
                         .find_map(|shape| match &shape.shape {
                             Shape::Rect(r)
-                                if r.fill == Color32::from_rgb(255, 106, 0)
+                                if r.fill == Color32::from_rgb(0x78, 0xc3, 0x7d)
                                     && strip.contains_rect(r.rect) =>
                             {
                                 Some(r.rect)

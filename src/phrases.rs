@@ -5,6 +5,32 @@ use std::{borrow::Cow, ops::Range};
 
 pub const STRIP_HEIGHT: f32 = 18.0;
 
+/// Phrase colours by label, matching Vynull's web client (PHRASE_COLORS in
+/// drawer.js). Plain UP, from Vynull's own analysis, takes UP 1's colour.
+const COLORS: [(&str, u32); 21] = [
+    ("INTRO", 0xe14646),
+    ("INTRO 1", 0xc80000),
+    ("INTRO 2", 0xc83200),
+    ("UP", 0x8c32ff),
+    ("UP 1", 0x8c32ff),
+    ("UP 2", 0x6932ff),
+    ("UP 3", 0x5a32ff),
+    ("DOWN", 0x9b732d),
+    ("CHORUS", 0x78c37d),
+    ("CHORUS 1", 0x0faa00),
+    ("CHORUS 2", 0x00aa7d),
+    ("OUTRO", 0x677587),
+    ("OUTRO 1", 0x4879af),
+    ("OUTRO 2", 0x5f87af),
+    ("BRIDGE", 0xe1d741),
+    ("VERSE 1", 0x506eff),
+    ("VERSE 2", 0x5055ff),
+    ("VERSE 3", 0x6450ff),
+    ("VERSE 4", 0x7850ff),
+    ("VERSE 5", 0x7e48e5),
+    ("VERSE 6", 0xa050ff),
+];
+
 /// Absolute audio times supplied by Vynull, independent of subsequent grid edits.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Phrase {
@@ -38,15 +64,35 @@ impl Phrase {
         }
     }
 
+    /// The label's colour, as Vynull's web client paints it; neutral for a
+    /// label it doesn't know.
     fn color(&self) -> Color32 {
-        // Match the section colors in Vynull's web client.
-        match self.kind {
-            1 => Color32::from_rgb(92, 218, 218),
-            2 => Color32::from_rgb(255, 216, 77),
-            3 => Color32::from_rgb(90, 168, 255),
-            5 => Color32::from_rgb(255, 106, 0),
-            6 => Color32::from_rgb(138, 138, 146),
-            _ => Color32::from_rgb(147, 157, 168),
+        let label = self.label();
+        COLORS
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(&label))
+            .map_or(Color32::from_rgb(147, 157, 168), |&(_, hex)| {
+                Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+            })
+    }
+
+    /// Black or white, whichever contrasts more with the colour (WCAG relative
+    /// luminance, as the web client picks).
+    fn text_color(&self) -> Color32 {
+        let linear = |c: u8| {
+            let c = f32::from(c) / 255.0;
+            if c <= 0.03928 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        let c = self.color();
+        let luminance = 0.2126 * linear(c.r()) + 0.7152 * linear(c.g()) + 0.0722 * linear(c.b());
+        if luminance > 0.179 {
+            Color32::from_black_alpha(204)
+        } else {
+            Color32::WHITE
         }
     }
 }
@@ -113,10 +159,11 @@ impl Sections {
                 segment.y_range(),
                 Stroke::new(1.0, crate::theme::BG),
             );
+            let text = phrase.text_color();
             let label = p.layout_no_wrap(
                 phrase.label().into_owned(),
                 FontId::proportional(11.0),
-                Color32::WHITE,
+                text,
             );
             if label.size().x + 8.0 <= segment.width() {
                 p.galley(
@@ -125,7 +172,7 @@ impl Sections {
                         segment.center().y - label.size().y / 2.0,
                     ),
                     label,
-                    Color32::WHITE,
+                    text,
                 );
             }
         }
@@ -246,5 +293,25 @@ mod tests {
             .collect();
         assert_eq!(labels, ["CHORUS"]);
         assert!(output.shapes.iter().any(|s| matches!(&s.shape, Shape::Rect(r) if r.fill == sections.0[0].color() && r.rect.width() == 3.0)));
+    }
+
+    #[test]
+    fn labels_take_their_colour_and_a_contrasting_text_colour() {
+        let named = |name: &str| Phrase {
+            name: name.into(),
+            ..phrase(0, 0, 1)
+        };
+        assert_eq!(
+            named("VERSE 3").color(),
+            Color32::from_rgb(0x64, 0x50, 0xff)
+        );
+        assert_eq!(
+            named("chorus 2").color(),
+            Color32::from_rgb(0x00, 0xaa, 0x7d)
+        );
+        assert_eq!(phrase(2, 0, 1).color(), named("UP 1").color());
+        assert_eq!(named("SECTION 4").color(), Color32::from_rgb(147, 157, 168));
+        assert_eq!(named("BRIDGE").text_color(), Color32::from_black_alpha(204));
+        assert_eq!(named("INTRO 1").text_color(), Color32::WHITE);
     }
 }
