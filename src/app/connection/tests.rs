@@ -36,7 +36,7 @@ fn waveform_style_choices_fit_touch_setup_apply_and_restore_without_resetting_pl
                 eframe::egui::Event::PointerMoved(pos2(600.0, 350.0)),
                 eframe::egui::Event::MouseWheel {
                     unit: MouseWheelUnit::Point,
-                    delta: vec2(0.0, -180.0),
+                    delta: vec2(0.0, -240.0),
                     phase: TouchPhase::Move,
                     source: MouseWheelSource::Unknown,
                     modifiers: Modifiers::NONE,

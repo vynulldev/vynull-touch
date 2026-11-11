@@ -305,7 +305,7 @@ impl App {
                 }
             }
         });
-        if live && player.as_ref().is_some_and(|p| p.is_playing) {
+        if live && player.as_ref().is_some_and(Player::is_forward_playback) {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
     }

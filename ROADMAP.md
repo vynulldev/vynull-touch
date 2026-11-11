@@ -1,6 +1,6 @@
 # Vynull Touch Roadmap
 
-Updated November 10, 2026
+Updated November 11, 2026
 
 Vynull Touch is a touchscreen companion for Vynull: browse the library, prepare
 tracks, and monitor and load the decks. It is built for 800×480 first; larger
@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 198 tests (the opt-in
+Everything below is built. The latest build passed 242 tests (the opt-in
 hardware-audio test skipped). What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -26,22 +26,25 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
 - Overview and detailed waveforms with the beat grid, phrase strips, remembered
   zoom and smooth curves at high zoom.
 - Local audio preview, beat jumps, a millisecond cursor readout and Quantize.
-- Hot cues A–H, cue editing and saved loops.
-- Beat-grid editing (nudges, beat 1, a BPM keypad); analysis-locked grids stay
-  read-only.
+- Hot cues A–H in rekordbox's 16 cue colors with per-pad defaults, cue editing
+  and saved loops.
+- Beat-grid editing (nudges, beat 1, a BPM keypad) with an Analysis lock, and
+  Undo/Redo.
 
 **Players**
 
 - Cards, Waveforms and a focused view, two-player comparison, custom pairs, and
   four cards when the display has room.
-- Smooth estimated playheads; phrase strips with the current section, and
-  bars/beats countdowns to the next phrase and the next cue.
+- Smooth estimated playheads, held CUE included; phrase strips with the current
+  section, and bars/beats countdowns to the next phrase and the next cue.
 - Loading with session and source checks, and confirmation before replacing a
   playing track.
 
 **Settings and diagnostics**
 
 - Saved server, startup page and waveform style; preview audio output and volume.
+- CDJ & mixer: Vynull's shared hardware profile (46 fields) and the CDJ menu's
+  categories, sort menu and track-detail column.
 - Diagnostics: status, versions, request errors, logs and a copyable report.
 
 **Releases:** `scripts/release.py` builds natively, checks checksums, installs
@@ -50,8 +53,9 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 ## Next steps
 
 1. Walk through the features on the physical touchscreen: navigation
-   and Back, the editors and grid editing.
-2. Check them against live CDJs: playhead smoothness and countdowns.
+   and Back, the editors, the settings pages and grid editing with Undo/Redo.
+2. Check them against live CDJs: playhead smoothness, countdowns, the CDJ menu
+   after browser changes, and hardware settings writes.
 3. Measure performance on the Pi and set budgets from it.
 4. Add recently played history, and document the desktop shortcut and
    autostart setup.
@@ -138,8 +142,7 @@ shortlist at the wrong track.
 - [x] Rating, color and tag edits in Inspect.
 - [x] Tag and category management.
 - [x] Playlist and folder management.
-- [x] Beat-grid editing (nudges, beat 1, BPM); analysis-locked grids stay
-  read-only.
+- [x] Beat-grid editing with an Analysis lock and Undo/Redo.
 - [ ] Read every edit back and refresh related views; keep drafts on recoverable
   errors and make uncertain saves explicit.
 
@@ -153,8 +156,10 @@ persistence failures, and no edit or preview ever moves a deck.
   playlist tree and the open playlist.
 - A shortlist needs a decision first: kept on this device, or shared as a
   regular Vynull playlist.
-- Vynull's grid endpoints have no atomic multi-step writes or persistence
-  receipts.
+- Grid Undo/Redo uses `POST /api/analysis/beatgrid/restore` (Vynull #183).
+  Vynull still has no atomic multi-step grid writes or persistence receipts.
+- Browser and hardware settings write through `/api/menu-items` and
+  `/api/settings`, which have no revision check: the last write wins.
 - Recently played history needs Vynull's history identity contract checked.
 
 Missing guarantees like these are Vynull work; a check in the app doesn't make a

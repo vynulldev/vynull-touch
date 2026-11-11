@@ -133,6 +133,11 @@ pub struct Player {
 }
 
 impl Player {
+    /// Holding CUE advances audio even when the CDJ's separate playing flag is clear.
+    pub fn is_forward_playback(&self) -> bool {
+        (self.is_playing || self.play_state == 7) && self.play_state_name != "REVERSE"
+    }
+
     pub fn needs_load_confirmation(&self) -> bool {
         self.is_playing || matches!(self.play_state, 3 | 4 | 7)
     }

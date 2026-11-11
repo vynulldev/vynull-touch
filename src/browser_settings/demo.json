@@ -1,0 +1,312 @@
+{
+  "items": [
+    {
+      "key": "artist",
+      "label": "ARTIST",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "album",
+      "label": "ALBUM",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "track",
+      "label": "TRACK",
+      "visible": true,
+      "locked": true,
+      "export_only": false
+    },
+    {
+      "key": "key",
+      "label": "KEY",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "playlist",
+      "label": "PLAYLIST",
+      "visible": true,
+      "locked": true,
+      "export_only": false
+    },
+    {
+      "key": "history",
+      "label": "HISTORY",
+      "visible": true,
+      "locked": true,
+      "export_only": false
+    },
+    {
+      "key": "search",
+      "label": "SEARCH",
+      "visible": true,
+      "locked": true,
+      "export_only": false
+    },
+    {
+      "key": "folder",
+      "label": "FOLDER",
+      "visible": true,
+      "locked": true,
+      "export_only": true
+    },
+    {
+      "key": "bpm",
+      "label": "BPM",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "label",
+      "label": "LABEL",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "year",
+      "label": "YEAR",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "color",
+      "label": "COLOR",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "file_name",
+      "label": "FILE NAME",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "hot_cue_bank",
+      "label": "HOT CUE BANK",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "rating",
+      "label": "RATING",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "time",
+      "label": "TIME",
+      "visible": true,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "bitrate",
+      "label": "BITRATE",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "genre",
+      "label": "GENRE",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "matching",
+      "label": "MATCHING",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "original_artist",
+      "label": "ORIGINAL ARTIST",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "remixer",
+      "label": "REMIXER",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    },
+    {
+      "key": "date_added",
+      "label": "DATE ADDED",
+      "visible": false,
+      "locked": false,
+      "export_only": false
+    }
+  ],
+  "sorts": [
+    {
+      "id": 0,
+      "label": "DEFAULT",
+      "visible": true
+    },
+    {
+      "id": 1,
+      "label": "ALPHABET",
+      "visible": true
+    },
+    {
+      "id": 2,
+      "label": "ARTIST",
+      "visible": true
+    },
+    {
+      "id": 3,
+      "label": "ALBUM",
+      "visible": true
+    },
+    {
+      "id": 4,
+      "label": "BPM",
+      "visible": true
+    },
+    {
+      "id": 5,
+      "label": "RATING",
+      "visible": true
+    },
+    {
+      "id": 12,
+      "label": "KEY",
+      "visible": true
+    },
+    {
+      "id": 10,
+      "label": "LABEL",
+      "visible": true
+    },
+    {
+      "id": 6,
+      "label": "GENRE",
+      "visible": true
+    },
+    {
+      "id": 17,
+      "label": "DATE ADDED",
+      "visible": true
+    },
+    {
+      "id": 16,
+      "label": "DJ PLAY COUNT",
+      "visible": true
+    },
+    {
+      "id": 7,
+      "label": "COMMENTS",
+      "visible": false
+    },
+    {
+      "id": 8,
+      "label": "TIME",
+      "visible": false
+    },
+    {
+      "id": 9,
+      "label": "REMIXER",
+      "visible": false
+    },
+    {
+      "id": 11,
+      "label": "ORIGINAL ARTIST",
+      "visible": false
+    },
+    {
+      "id": 13,
+      "label": "BITRATE",
+      "visible": false
+    },
+    {
+      "id": 15,
+      "label": "COLOR",
+      "visible": false
+    }
+  ],
+  "track_detail": "bpm",
+  "track_detail_fields": [
+    {
+      "key": "bpm",
+      "label": "BPM"
+    },
+    {
+      "key": "artist",
+      "label": "Artist"
+    },
+    {
+      "key": "album",
+      "label": "Album"
+    },
+    {
+      "key": "genre",
+      "label": "Genre"
+    },
+    {
+      "key": "key",
+      "label": "Key"
+    },
+    {
+      "key": "rating",
+      "label": "Rating"
+    },
+    {
+      "key": "time",
+      "label": "Time"
+    },
+    {
+      "key": "label",
+      "label": "Record label"
+    },
+    {
+      "key": "bitrate",
+      "label": "Bitrate"
+    },
+    {
+      "key": "color",
+      "label": "Track colour"
+    },
+    {
+      "key": "comments",
+      "label": "Comment"
+    },
+    {
+      "key": "original_artist",
+      "label": "Original artist"
+    },
+    {
+      "key": "remixer",
+      "label": "Remixer"
+    },
+    {
+      "key": "dj_play_count",
+      "label": "Play count"
+    },
+    {
+      "key": "date_added",
+      "label": "Date added"
+    },
+    {
+      "key": "not_specified",
+      "label": "(none)"
+    }
+  ]
+}

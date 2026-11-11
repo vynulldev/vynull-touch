@@ -30,7 +30,9 @@ impl App {
     }
 
     pub(super) fn reconnect_session(&mut self, ctx: &Context) {
-        let pending = self.grid_editor.as_ref().is_some_and(|e| e.pending)
+        let pending = self.browser_settings.pending
+            || self.device_settings.pending
+            || self.grid_editor.as_ref().is_some_and(|e| e.pending)
             || self.load_busy
             || self
                 .editor
@@ -120,6 +122,17 @@ impl App {
             .show(ui, |ui| {
                 ui.heading("Make yourself at home");
                 ui.label(RichText::new("Connect this screen to your Vynull library.").size(14.0).color(MUTED));
+                ui.horizontal(|ui| {
+                    let devices = theme::button(ui, "CDJ & mixer…", vec2(180.0, 48.0), false);
+                    self.hit("CDJ & mixer", devices.rect);
+                    if devices.clicked() { self.open_device_settings(); }
+                    let cue_colors = theme::button(ui, "Cue colors…", vec2(160.0, 48.0), false);
+                    self.hit("Cue defaults", cue_colors.rect);
+                    if cue_colors.clicked() {
+                        self.keyboard = None;
+                        self.cue_defaults = Some(cue_defaults_ui::Picker::default());
+                    }
+                });
                 ui.add_space(10.0);
                 ui.label(RichText::new("VYNULL SERVER").size(11.0).color(ORANGE));
                 let response = ui.add_sized(
@@ -129,7 +142,7 @@ impl App {
                 self.hit("Server address", response.rect);
                 if response.clicked() { self.keyboard = Some(Field::Server); }
                 ui.horizontal(|ui| {
-                    let enabled = !self.load_busy && self.cue_quick.is_none()
+                    let enabled = !self.browser_settings.pending && !self.device_settings.pending && !self.load_busy && self.cue_quick.is_none()
                         && !self.cue_editor.as_ref().is_some_and(|editor| editor.pending);
                     let connect = ui.add_enabled_ui(enabled, |ui| theme::primary(ui, "Connect", vec2(130.0, 48.0))).inner;
                     self.hit("Server connect", connect.rect);

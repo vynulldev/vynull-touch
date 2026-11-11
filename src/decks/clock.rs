@@ -6,6 +6,7 @@ use std::time::Instant;
 pub struct Clock {
     anchor: Option<Anchor>,
     last_position: Option<f64>,
+    cue_beat: Option<(u32, Instant)>,
 }
 
 struct Anchor {
@@ -43,18 +44,38 @@ impl Clock {
         now: Instant,
         fresh: bool,
     ) -> Option<f64> {
+        // Older servers send age=0 throughout CUE PLAY when the deck's playing
+        // flag is clear. Keep the first observation of this beat across polls;
+        // treating every zero as a new beat would repeatedly rewind the clock.
+        // Retain it even after an expired anchor, until the beat/state changes.
+        let cue_play = player.play_state == 7 && player.is_forward_playback();
+        let beat_sampled = if cue_play && fresh {
+            let anchor = self.cue_beat.get_or_insert((player.beat_in_track, sampled));
+            if anchor.0 != player.beat_in_track {
+                *anchor = (player.beat_in_track, sampled);
+            }
+            anchor.1
+        } else {
+            self.cue_beat = None;
+            sampled
+        };
+        let phase_sampled = if cue_play && !player.is_playing && player.beat_age_ms == 0 {
+            beat_sampled
+        } else {
+            sampled
+        };
         let Some(observed) = super::position(
             player,
             assets,
-            now.saturating_duration_since(sampled),
+            now.saturating_duration_since(phase_sampled),
             fresh,
         ) else {
             self.anchor = None;
             return None;
         };
         let reverse = player.play_state_name == "REVERSE";
-        let transport = (player.is_playing, player.play_state, reverse);
-        let rate = if player.is_playing && !reverse {
+        let transport = (player.is_forward_playback(), player.play_state, reverse);
+        let rate = if player.is_forward_playback() {
             (1.0 + player.pitch_pct / 100.0).clamp(0.01, 3.0)
         } else {
             0.0
@@ -127,6 +148,110 @@ mod tests {
     }
     fn at(start: Instant, seconds: f64) -> Instant {
         start + Duration::from_secs_f64(seconds)
+    }
+
+    fn cue_play(seconds: f64) -> Player {
+        Player {
+            is_playing: false,
+            play_state: 7,
+            play_state_name: "CUE PLAY".into(),
+            beat_age_ms: 0, // Older API suppresses phase when the playing flag is clear.
+            ..player(seconds)
+        }
+    }
+
+    #[test]
+    fn held_cue_advances_smoothly_across_repeated_zero_age_status_and_delayed_beats() {
+        let start = Instant::now();
+        let assets = assets();
+        let mut clock = Clock::default();
+        let mut p = cue_play(10.0);
+        let mut sampled = start;
+        let mut previous = 10.0;
+        for frame in 0..360 {
+            let t = frame as f64 / 60.0;
+            // Quarter-second polls, with the first beat change delivered 150 ms late.
+            if frame >= 9 && (frame - 9) % 15 == 0 {
+                p = cue_play(10.0 + t - 0.15);
+                sampled = at(start, t);
+            }
+            let position = clock
+                .position(&p, &assets, sampled, at(start, t), true)
+                .unwrap();
+            if frame > 0 {
+                assert!(
+                    (0.01..0.025).contains(&(position - previous)),
+                    "cue-play jumped or froze at frame {frame}: {position} after {previous}"
+                );
+            }
+            assert!((position - (10.0 + t)).abs() < 0.2);
+            previous = position;
+        }
+        // Releasing CUE returns immediately, even within the current beat.
+        let now = at(start, 6.0);
+        let cued = Player {
+            play_state: 6,
+            play_state_name: "CUED".into(),
+            ..cue_play(15.5)
+        };
+        assert_eq!(clock.position(&cued, &assets, now, now, true), Some(15.5));
+        assert_eq!(
+            clock.position(&cued, &assets, now, at(start, 6.2), true),
+            Some(15.5)
+        );
+        let now = at(start, 6.3);
+        assert_eq!(
+            clock.position(&cue_play(15.5), &assets, now, now, true),
+            Some(15.5)
+        );
+        assert_eq!(
+            clock.position(&cue_play(15.5), &assets, now, at(start, 6.4), true),
+            Some(15.6)
+        );
+    }
+
+    #[test]
+    fn cue_play_phase_fallback_expires_without_restarting_on_repeated_status() {
+        let start = Instant::now();
+        let assets = assets();
+        let mut clock = Clock::default();
+        let p = cue_play(10.0);
+        assert_eq!(clock.position(&p, &assets, start, start, true), Some(10.0));
+        for i in 1..20 {
+            let now = at(start, i as f64 * 0.25);
+            let result = clock.position(&p, &assets, now, now, true);
+            if i > 8 {
+                assert!(result.is_none(), "stalled cue beat must stay expired");
+            }
+        }
+        let now = at(start, 5.0);
+        assert_eq!(
+            clock.position(&cue_play(12.0), &assets, now, now, true),
+            Some(12.0)
+        );
+        let now = at(start, 5.1);
+        assert!(clock.position(&p, &assets, now, now, false).is_none());
+    }
+
+    #[test]
+    fn cue_play_uses_reported_phase_when_available_and_applies_pitch() {
+        let start = Instant::now();
+        let assets = assets();
+        for playing_flag in [false, true] {
+            let mut clock = Clock::default();
+            let p = Player {
+                is_playing: playing_flag,
+                beat_age_ms: 100,
+                pitch_pct: 10.0,
+                ..cue_play(10.0)
+            };
+            let before = clock.position(&p, &assets, start, start, true).unwrap();
+            let after = clock
+                .position(&p, &assets, start, at(start, 0.1), true)
+                .unwrap();
+            assert!((before - 10.11).abs() < 1e-6);
+            assert!((after - before - 0.11).abs() < 1e-6);
+        }
     }
 
     #[test]

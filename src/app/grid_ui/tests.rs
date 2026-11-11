@@ -113,6 +113,7 @@ fn grid_touch_editor_fits_nudges_aligns_and_edits_bpm_without_moving_cues_or_loo
             "Grid Set beat 1 here",
             "Grid Reload grid",
             "Grid Done editing",
+            "Grid analysis lock",
             "Grid Play",
             "Grid −",
             "Grid +",
@@ -448,4 +449,466 @@ fn inline_grid_mode_seeks_freely_and_restores_inspect_controls_and_quantize() {
     tap(&mut app, &ctx, size, "Playlists");
     assert_eq!(app.page, Page::Playlists);
     assert!(!app.grid_editor.as_ref().unwrap().open);
+}
+
+#[test]
+fn analysis_lock_toggle_disables_edits_preserves_draft_and_updates_library_tracks() {
+    for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0), vec2(1280.0, 800.0)] {
+        let ctx = Context::default();
+        let mut app = App::new(
+            &ctx,
+            Options {
+                demo: true,
+                ..Default::default()
+            },
+            None,
+        );
+        let (controller, requests, _) = Controller::test();
+        app.preview = controller;
+        let track = app.tracks[0].clone();
+        app.inspect(track.clone());
+        app.position = 1.234;
+        let region = crate::loops::Region {
+            start: 1.0,
+            end: 3.0,
+        };
+        app.preview.start_loop(region);
+        tap(&mut app, &ctx, size, "Edit grid");
+        let grid = app.detail.as_ref().unwrap().beat_grid.clone();
+        let cues = app.detail.as_ref().unwrap().cues.clone();
+        app.grid_editor.as_mut().unwrap().bpm = "121.25".into();
+        tap(&mut app, &ctx, size, "Grid analysis lock");
+        assert!(app.detail_track.as_ref().unwrap().analysis_locked);
+        assert!(!app.grid_editor.as_ref().unwrap().writable());
+        assert_eq!(app.grid_editor.as_ref().unwrap().bpm, "121.25");
+        for tracks in [&app.tracks, &app.all_tracks] {
+            assert!(
+                tracks
+                    .iter()
+                    .find(|t| t.id == track.id)
+                    .unwrap()
+                    .analysis_locked
+            );
+        }
+        for name in ["Grid Later ›", "Grid Set beat 1 here", "Grid Apply BPM"] {
+            tap(&mut app, &ctx, size, name);
+        }
+        assert!(app.detail.as_ref().unwrap().beat_grid.matches(&grid));
+        assert_eq!(app.detail.as_ref().unwrap().cues, cues);
+        assert_eq!(requests.borrow().loop_region, Some(region));
+        assert_eq!(app.position, 1.234);
+        tap(&mut app, &ctx, size, "Grid analysis lock");
+        assert!(!app.detail_track.as_ref().unwrap().analysis_locked);
+        assert!(app.grid_editor.as_ref().unwrap().writable());
+        assert_eq!(app.grid_editor.as_ref().unwrap().bpm, "121.25");
+        assert!(app.detail.as_ref().unwrap().beat_grid.matches(&grid));
+        tap(&mut app, &ctx, size, "Grid Later ›");
+        let nudged = app.detail.as_ref().unwrap().beat_grid.clone();
+        assert!((nudged.beats()[0].time_ms - grid.beats()[0].time_ms - 1.0).abs() < 0.001);
+        tap(&mut app, &ctx, size, "Grid analysis lock");
+        tap(&mut app, &ctx, size, "Grid Done editing");
+        app.inspect(
+            app.all_tracks
+                .iter()
+                .find(|t| t.id == track.id)
+                .unwrap()
+                .clone(),
+        );
+        tap(&mut app, &ctx, size, "Edit grid");
+        assert!(app.detail_track.as_ref().unwrap().analysis_locked);
+        assert!(!app.grid_editor.as_ref().unwrap().writable());
+        assert!(app.detail.as_ref().unwrap().beat_grid.matches(&nudged));
+        assert_eq!(app.detail.as_ref().unwrap().cues, cues);
+    }
+}
+
+#[test]
+fn analysis_lock_waits_for_confirmation_and_requires_reload_after_lost_reply() {
+    let ctx = Context::default();
+    let size = vec2(800.0, 480.0);
+    let mut app = App::new(
+        &ctx,
+        Options {
+            demo: true,
+            ..Default::default()
+        },
+        None,
+    );
+    app.preview = Controller::test().0;
+    app.inspect(app.tracks[0].clone());
+    app.open_grid_editor();
+    let snapshot = app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+    let locked = Change::Lock(true).apply(&snapshot).unwrap();
+    let (worker, commands, events) = Worker::test();
+    app.worker = Some(worker);
+    app.options.demo = false;
+    app.library_ready = true;
+    app.library_session = Some("one".into());
+    app.last_status = Some(Instant::now());
+    tap(&mut app, &ctx, size, "Grid analysis lock");
+    assert!(matches!(
+        commands.try_recv().unwrap(),
+        Command::Grid {
+            change: Some(Change::Lock(true)),
+            ..
+        }
+    ));
+    assert!(app.grid_pending());
+    assert!(!app.detail_track.as_ref().unwrap().analysis_locked);
+    for name in ["Grid analysis lock", "Grid Later ›"] {
+        tap(&mut app, &ctx, size, name);
+    }
+    assert!(commands.try_recv().is_err());
+    events
+        .send(Event::Grid(
+            snapshot.track.id,
+            app.token,
+            true,
+            Err("Lock reply lost".into()),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(app.grid_editor.as_ref().unwrap().needs_reload);
+    tap(&mut app, &ctx, size, "Grid analysis lock");
+    assert!(commands.try_recv().is_err());
+    tap(&mut app, &ctx, size, "Grid Reload grid");
+    assert!(matches!(
+        commands.try_recv().unwrap(),
+        Command::Grid { change: None, .. }
+    ));
+    events
+        .send(Event::Grid(
+            snapshot.track.id,
+            app.token,
+            false,
+            Ok(Box::new(locked)),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(app.detail_track.as_ref().unwrap().analysis_locked);
+    assert!(!app.grid_editor.as_ref().unwrap().writable());
+    tap(&mut app, &ctx, size, "Grid analysis lock");
+    assert!(matches!(
+        commands.try_recv().unwrap(),
+        Command::Grid {
+            change: Some(Change::Lock(false)),
+            ..
+        }
+    ));
+    assert!(app.detail_track.as_ref().unwrap().analysis_locked);
+    events
+        .send(Event::Grid(
+            snapshot.track.id,
+            app.token,
+            true,
+            Ok(Box::new(snapshot)),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(!app.detail_track.as_ref().unwrap().analysis_locked);
+    assert!(app.grid_editor.as_ref().unwrap().writable());
+}
+
+#[test]
+fn grid_history_round_trips_variable_grid_and_bpm_and_branches_after_undo() {
+    for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0), vec2(1280.0, 800.0)] {
+        let ctx = Context::default();
+        let mut app = App::new(
+            &ctx,
+            Options {
+                demo: true,
+                ..Default::default()
+            },
+            None,
+        );
+        app.preview = Controller::test().0;
+        let track = app.tracks[0].clone();
+        app.inspect(track.clone());
+        let mut beats = app.detail.as_ref().unwrap().beat_grid.beats().to_vec();
+        for (i, beat) in beats.iter_mut().enumerate() {
+            beat.time_ms += if i % 2 == 0 { -25.0 } else { 10.0 };
+        }
+        app.detail.as_mut().unwrap().beat_grid = crate::beat_grid::BeatGrid::new(
+            crate::beat_grid::TrackAnalysis {
+                track_id: track.id,
+                beats,
+            },
+            track.id,
+        )
+        .unwrap();
+        let cues = app.detail.as_ref().unwrap().cues.clone();
+        tap(&mut app, &ctx, size, "Edit grid");
+        let state = |app: &App| app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+        let initial = state(&app);
+        for name in ["Grid Undo", "Grid Redo"] {
+            let rect = app.hits.iter().find(|(n, _)| n == name).unwrap().1;
+            assert!(Rect::from_min_size(Pos2::ZERO, vec2(size.x, 52.0)).contains_rect(rect));
+            assert!(rect.width() >= 48.0 && rect.height() >= 48.0);
+        }
+        tap(&mut app, &ctx, size, "Grid Later ›");
+        let shifted = state(&app);
+        app.position = 1.11;
+        tap(&mut app, &ctx, size, "Grid Set beat 1 here");
+        let aligned = state(&app);
+        app.grid_editor.as_mut().unwrap().bpm = "60".into();
+        tap(&mut app, &ctx, size, "Grid Apply BPM");
+        let steady = state(&app);
+        for expected in [&aligned, &shifted, &initial] {
+            tap(&mut app, &ctx, size, "Grid Undo");
+            assert!(state(&app).matches(expected));
+            assert!(
+                app.detail
+                    .as_ref()
+                    .unwrap()
+                    .beat_grid
+                    .matches(&expected.grid)
+            );
+            assert_eq!(app.position, 1.11);
+            assert_eq!(app.detail.as_ref().unwrap().cues, cues);
+        }
+        for expected in [&shifted, &aligned, &steady] {
+            tap(&mut app, &ctx, size, "Grid Redo");
+            assert!(state(&app).matches(expected));
+        }
+        tap(&mut app, &ctx, size, "Grid Undo");
+        tap(&mut app, &ctx, size, "Grid Later ›");
+        assert!(
+            app.grid_editor
+                .as_ref()
+                .unwrap()
+                .history
+                .target(Direction::Redo)
+                .is_none()
+        );
+        tap(&mut app, &ctx, size, "Grid analysis lock");
+        let locked = state(&app);
+        tap(&mut app, &ctx, size, "Grid Undo");
+        assert!(state(&app).matches(&locked));
+        tap(&mut app, &ctx, size, "Grid analysis lock");
+        tap(&mut app, &ctx, size, "Grid Undo");
+        assert!(state(&app).matches(&aligned));
+        tap(&mut app, &ctx, size, "Grid Done editing");
+        tap(&mut app, &ctx, size, "Edit grid");
+        tap(&mut app, &ctx, size, "Grid Reload grid");
+        assert!(
+            app.grid_editor
+                .as_ref()
+                .unwrap()
+                .history
+                .target(Direction::Undo)
+                .is_some()
+        );
+        let changed = Change::Nudge(10.0).apply(&aligned).unwrap();
+        app.demo_grids.insert(track.id, changed.clone());
+        tap(&mut app, &ctx, size, "Grid Reload grid");
+        assert!(state(&app).matches(&changed));
+        assert!(
+            app.grid_editor
+                .as_ref()
+                .unwrap()
+                .history
+                .target(Direction::Undo)
+                .is_none()
+        );
+        assert!(
+            app.grid_editor
+                .as_ref()
+                .unwrap()
+                .history
+                .target(Direction::Redo)
+                .is_none()
+        );
+        app.inspect(app.tracks[1].clone());
+        tap(&mut app, &ctx, size, "Edit grid");
+        assert!(
+            app.grid_editor
+                .as_ref()
+                .unwrap()
+                .history
+                .target(Direction::Undo)
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn grid_history_waits_for_verified_response_and_clears_after_uncertain_restore() {
+    let ctx = Context::default();
+    let size = vec2(800.0, 480.0);
+    let mut app = App::new(
+        &ctx,
+        Options {
+            demo: true,
+            ..Default::default()
+        },
+        None,
+    );
+    app.preview = Controller::test().0;
+    app.inspect(app.tracks[0].clone());
+    app.open_grid_editor();
+    let original = app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+    tap(&mut app, &ctx, size, "Grid Later ›");
+    let edited = app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+    let (worker, commands, events) = Worker::test();
+    app.worker = Some(worker);
+    app.options.demo = false;
+    app.library_ready = true;
+    app.library_session = Some("one".into());
+    app.last_status = Some(Instant::now());
+    tap(&mut app, &ctx, size, "Grid Undo");
+    assert!(matches!(
+        commands.try_recv().unwrap(),
+        Command::GridRestore { .. }
+    ));
+    assert!(app.grid_pending());
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .matches(&edited)
+    );
+    tap(&mut app, &ctx, size, "Grid Undo");
+    assert!(commands.try_recv().is_err());
+    events
+        .send(Event::Grid(
+            original.track.id,
+            app.token + 1,
+            true,
+            Ok(Box::new(original.clone())),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(app.grid_pending());
+    events
+        .send(Event::Grid(
+            original.track.id,
+            app.token,
+            true,
+            Ok(Box::new(original.clone())),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .history
+            .target(Direction::Undo)
+            .is_none()
+    );
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .history
+            .target(Direction::Redo)
+            .unwrap()
+            .matches(&edited)
+    );
+    tap(&mut app, &ctx, size, "Grid Redo");
+    assert!(matches!(
+        commands.try_recv().unwrap(),
+        Command::GridRestore { .. }
+    ));
+    events
+        .send(Event::Grid(
+            original.track.id,
+            app.token,
+            true,
+            Err("Reply lost".into()),
+        ))
+        .unwrap();
+    frame(&mut app, &ctx, size, vec![]);
+    assert!(app.grid_editor.as_ref().unwrap().needs_reload);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .history
+            .target(Direction::Redo)
+            .is_none()
+    );
+    tap(&mut app, &ctx, size, "Grid Redo");
+    assert!(commands.try_recv().is_err());
+}
+
+#[test]
+fn grid_history_keyboard_shortcuts_leave_bpm_text_entry_alone() {
+    let ctx = Context::default();
+    let size = vec2(800.0, 480.0);
+    let mut app = App::new(
+        &ctx,
+        Options {
+            demo: true,
+            ..Default::default()
+        },
+        None,
+    );
+    app.preview = Controller::test().0;
+    app.inspect(app.tracks[0].clone());
+    app.open_grid_editor();
+    let initial = app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+    tap(&mut app, &ctx, size, "Grid Later ›");
+    let changed = app.grid_editor.as_ref().unwrap().snapshot.clone().unwrap();
+    let shortcut = |app: &mut App, key, modifiers| {
+        for pressed in [true, false] {
+            frame(
+                app,
+                &ctx,
+                size,
+                vec![egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed,
+                    repeat: false,
+                    modifiers,
+                }],
+            );
+        }
+    };
+    shortcut(&mut app, Key::Z, Modifiers::COMMAND);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .matches(&initial)
+    );
+    shortcut(&mut app, Key::Z, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .matches(&changed)
+    );
+    shortcut(&mut app, Key::Z, Modifiers::COMMAND);
+    shortcut(&mut app, Key::Y, Modifiers::COMMAND);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .matches(&changed)
+    );
+    tap(&mut app, &ctx, size, "Grid BPM");
+    shortcut(&mut app, Key::Z, Modifiers::COMMAND);
+    assert!(
+        app.grid_editor
+            .as_ref()
+            .unwrap()
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .matches(&changed)
+    );
 }

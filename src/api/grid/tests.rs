@@ -87,6 +87,7 @@ fn fixture(responses: Vec<Response>) -> (Api, thread::JoinHandle<Vec<Value>>) {
 
 fn before() -> Snapshot {
     Snapshot {
+        raw: None,
         track: Track {
             id: 7,
             file_path: "/a.wav".into(),
@@ -132,7 +133,7 @@ fn snapshot(s: &Snapshot) -> Vec<Response> {
         reply(
             "GET",
             "/api/analysis/7",
-            json!({"track_id":7,"bpm":s.bpm,"duration_sec":s.duration_sec,"beats":s.grid.beats().iter().map(|b|json!({"time_ms":b.time_ms,"beat_in_bar":b.beat_in_bar})).collect::<Vec<_>>()}),
+            json!({"grid_snapshot":s.raw,"track_id":7,"bpm":s.bpm,"duration_sec":s.duration_sec,"beats":s.grid.beats().iter().map(|b|json!({"time_ms":b.time_ms,"beat_in_bar":b.beat_in_bar})).collect::<Vec<_>>()}),
         ),
     ]
 }
@@ -141,17 +142,27 @@ fn ack(method: &'static str, path: &'static str) -> Response {
 }
 
 #[test]
-fn grid_writes_nudge_tempo_and_variable_downbeat_with_verified_readback() {
+fn grid_writes_lock_nudge_tempo_and_variable_downbeat_with_verified_readback() {
     for change in [
+        GridChange::Lock(true),
+        GridChange::Lock(false),
         GridChange::Nudge(-0.1),
         GridChange::Tempo(60.0),
         GridChange::Downbeat(1150.0),
         GridChange::Downbeat(1135.0),
     ] {
-        let before = before();
+        let mut before = before();
+        if let GridChange::Lock(locked) = change {
+            before.track.analysis_locked = !locked;
+        }
+        before.raw = Some(crate::grid_edit::RawGrid::from_snapshot(&before));
         let after = change.apply(&before).unwrap();
         let mut replies = snapshot(&before);
         match change {
+            GridChange::Lock(locked) => {
+                replies.push(ack("PUT", "/api/tracks/7/lock"));
+                replies.push(reply("GET", "/api/tracks/7/lock", json!({"locked":locked})));
+            }
             GridChange::Nudge(_) => replies.push(ack("POST", "/api/analysis/beatgrid/adjust")),
             GridChange::Tempo(_) => {
                 replies.push(ack("POST", "/api/analysis/beatgrid/adjust"));
@@ -180,6 +191,7 @@ fn grid_writes_nudge_tempo_and_variable_downbeat_with_verified_readback() {
             .filter(|v| !v.is_null())
             .collect();
         match change {
+            GridChange::Lock(locked) => assert_eq!(writes, vec![json!({"locked":locked})]),
             GridChange::Nudge(ms) => assert_eq!(writes, vec![json!({"track_id":7,"offset_ms":ms})]),
             GridChange::Tempo(bpm) => assert_eq!(
                 writes,
@@ -195,43 +207,45 @@ fn grid_writes_nudge_tempo_and_variable_downbeat_with_verified_readback() {
 
 #[test]
 fn grid_rejects_locks_changed_grids_sources_sessions_and_missing_identity_without_writing() {
-    for case in [
-        "locked",
-        "changed",
-        "phase",
-        "source",
-        "session",
-        "unsupported",
-    ] {
-        let before = before();
-        let mut actual = before.clone();
-        match case {
-            "locked" => actual.track.analysis_locked = true,
-            "changed" => actual = GridChange::Nudge(1.0).apply(&actual).unwrap(),
-            "phase" => actual.settings.beat_phase_shift = 1,
-            "source" => actual.track.file_path = "/other.wav".into(),
-            _ => (),
+    for change in [GridChange::Nudge(1.0), GridChange::Lock(true)] {
+        for case in [
+            "locked",
+            "changed",
+            "phase",
+            "source",
+            "session",
+            "unsupported",
+        ] {
+            let before = before();
+            let mut actual = before.clone();
+            match case {
+                "locked" => actual.track.analysis_locked = true,
+                "changed" => actual = GridChange::Nudge(1.0).apply(&actual).unwrap(),
+                "phase" => actual.settings.beat_phase_shift = 1,
+                "source" => actual.track.file_path = "/other.wav".into(),
+                _ => (),
+            }
+            let mut replies = snapshot(&actual);
+            if case == "source" {
+                replies.truncate(1);
+            }
+            if case == "session" {
+                replies.truncate(1);
+                replies[0].session = "two";
+            }
+            if case == "unsupported" {
+                replies.clear();
+            }
+            let (mut api, server) = fixture(replies);
+            if case == "unsupported" {
+                api.session = None;
+            }
+            assert!(
+                api.edit_grid(&before.track, Some(&before), Some(change))
+                    .is_err()
+            );
+            assert!(server.join().unwrap().iter().all(Value::is_null));
         }
-        let mut replies = snapshot(&actual);
-        if case == "source" {
-            replies.truncate(1);
-        }
-        if case == "session" {
-            replies.truncate(1);
-            replies[0].session = "two";
-        }
-        if case == "unsupported" {
-            replies.clear();
-        }
-        let (mut api, server) = fixture(replies);
-        if case == "unsupported" {
-            api.session = None;
-        }
-        assert!(
-            api.edit_grid(&before.track, Some(&before), Some(GridChange::Nudge(1.0)))
-                .is_err()
-        );
-        assert!(server.join().unwrap().iter().all(Value::is_null));
     }
 }
 
@@ -301,6 +315,167 @@ fn grid_partial_writes_and_lost_replies_are_never_retried_and_require_reload() {
             } else {
                 1
             }
+        );
+    }
+}
+
+#[test]
+fn analysis_lock_requires_ack_endpoint_and_track_readback_without_retrying() {
+    for case in [
+        "disconnect",
+        "rejected",
+        "unsupported",
+        "bad-receipt",
+        "wrong-lock",
+        "missing-lock",
+        "lost-lock",
+        "session",
+        "wrong-track-lock",
+        "changed-grid",
+        "changed-source",
+    ] {
+        let before = before();
+        let mut after = GridChange::Lock(true).apply(&before).unwrap();
+        let mut replies = snapshot(&before);
+        let mut write = ack("PUT", "/api/tracks/7/lock");
+        match case {
+            "disconnect" => write.status = "disconnect",
+            "rejected" => write.status = "409 Conflict",
+            "unsupported" => write.status = "404 Not Found",
+            "bad-receipt" => write.body = json!({"ok":false}),
+            _ => (),
+        }
+        replies.push(write);
+        if !matches!(
+            case,
+            "disconnect" | "rejected" | "unsupported" | "bad-receipt"
+        ) {
+            let mut read = reply("GET", "/api/tracks/7/lock", json!({"locked":true}));
+            match case {
+                "wrong-lock" => read.body = json!({"locked":false}),
+                "missing-lock" => read.body = json!({}),
+                "lost-lock" => read.status = "disconnect",
+                "session" => read.session = "two",
+                "wrong-track-lock" => after.track.analysis_locked = false,
+                "changed-grid" => after.grid = GridChange::Nudge(1.0).apply(&before).unwrap().grid,
+                "changed-source" => after.track.file_path = "/other.wav".into(),
+                _ => (),
+            }
+            replies.push(read);
+            if matches!(case, "wrong-track-lock" | "changed-grid" | "changed-source") {
+                let mut final_read = snapshot(&after);
+                if case == "changed-source" {
+                    final_read.truncate(1);
+                }
+                replies.extend(final_read);
+            }
+        }
+        let (api, server) = fixture(replies);
+        let error = api
+            .edit_grid(&before.track, Some(&before), Some(GridChange::Lock(true)))
+            .unwrap_err();
+        assert!(error.contains("Reload grid"), "{case}: {error}");
+        let writes: Vec<_> = server
+            .join()
+            .unwrap()
+            .into_iter()
+            .filter(|v| !v.is_null())
+            .collect();
+        assert_eq!(writes, vec![json!({"locked":true})], "{case}");
+    }
+}
+
+#[test]
+fn undo_redo_restores_exact_raw_grid_with_preflight_and_readback() {
+    let mut original = before();
+    original.raw = Some(crate::grid_edit::RawGrid::from_snapshot(&original));
+    let edited = GridChange::Tempo(60.0).apply(&original).unwrap();
+    for (before, after) in [(&edited, &original), (&original, &edited)] {
+        let mut replies = snapshot(before);
+        replies.push(ack("POST", "/api/analysis/beatgrid/restore"));
+        replies.extend(snapshot(after));
+        let (api, server) = fixture(replies);
+        assert!(
+            api.restore_grid(&before.track, before, after)
+                .unwrap()
+                .matches(after)
+        );
+        let writes: Vec<_> = server
+            .join()
+            .unwrap()
+            .into_iter()
+            .filter(|v| !v.is_null())
+            .collect();
+        assert_eq!(
+            writes,
+            vec![json!({"track_id":7,"expected":before.raw,"restore":after.raw})]
+        );
+    }
+}
+
+#[test]
+fn history_restore_rejects_stale_state_and_never_retries_an_uncertain_write() {
+    for case in [
+        "changed",
+        "locked",
+        "unsupported",
+        "disconnect",
+        "conflict",
+        "bad-readback",
+        "bad-receipt",
+        "session",
+        "source",
+    ] {
+        let mut original = before();
+        original.raw = Some(crate::grid_edit::RawGrid::from_snapshot(&original));
+        let edited = GridChange::Tempo(60.0).apply(&original).unwrap();
+        let mut actual = edited.clone();
+        match case {
+            "changed" => actual = GridChange::Nudge(1.0).apply(&edited).unwrap(),
+            "locked" => actual.track.analysis_locked = true,
+            "unsupported" => actual.raw = None,
+            "source" => actual.track.file_path = "/other.wav".into(),
+            _ => (),
+        }
+        let mut replies = snapshot(&actual);
+        if case == "source" {
+            replies.truncate(1);
+        }
+        if case == "session" {
+            replies.truncate(1);
+            replies[0].session = "two";
+        }
+        let writing = matches!(
+            case,
+            "disconnect" | "conflict" | "bad-readback" | "bad-receipt"
+        );
+        if writing {
+            let mut write = ack("POST", "/api/analysis/beatgrid/restore");
+            match case {
+                "disconnect" => write.status = "disconnect",
+                "conflict" => write.status = "409 Conflict",
+                "bad-receipt" => write.body = json!({"ok":false}),
+                _ => (),
+            }
+            replies.push(write);
+            if case == "bad-readback" {
+                replies.extend(snapshot(&edited));
+            }
+        }
+        let (api, server) = fixture(replies);
+        assert!(
+            api.restore_grid(&edited.track, &edited, &original)
+                .unwrap_err()
+                .contains("Reload grid")
+        );
+        assert_eq!(
+            server
+                .join()
+                .unwrap()
+                .iter()
+                .filter(|v| !v.is_null())
+                .count(),
+            usize::from(writing)
         );
     }
 }

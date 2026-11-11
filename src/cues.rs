@@ -34,14 +34,27 @@ pub struct Editor {
     pub pending: bool,
     pub error: String,
     pub loop_template: Option<crate::loops::Region>,
+    default_colors: [u32; 8],
 }
 impl Editor {
-    pub fn new(cues: &[Cue], slot: u16, position: f64, duration: f64, grid: &BeatGrid) -> Self {
+    pub fn new(
+        cues: &[Cue],
+        slot: u16,
+        position: f64,
+        duration: f64,
+        grid: &BeatGrid,
+        default_colors: [u32; 8],
+    ) -> Self {
         let expected = cues.iter().find(|c| c.number == slot).cloned();
         let draft = expected.clone().unwrap_or(Cue {
             number: slot,
             kind: "cue".into(),
             loop_ms: -1,
+            color_id: slot
+                .checked_sub(1)
+                .and_then(|index| default_colors.get(usize::from(index)))
+                .copied()
+                .unwrap_or(0),
             ..Default::default()
         });
         let mut editor = Self {
@@ -52,6 +65,7 @@ impl Editor {
             pending: false,
             error: String::new(),
             loop_template: None,
+            default_colors,
         };
         if editor.expected.is_none() {
             editor.place(position, duration, grid);
@@ -66,7 +80,7 @@ impl Editor {
         duration: f64,
         grid: &BeatGrid,
     ) -> Self {
-        let mut editor = Self::new(cues, slot, position, duration, grid);
+        let mut editor = Self::new(cues, slot, position, duration, grid, self.default_colors);
         editor.loop_template = self.loop_template;
         if let Some(region) = self.loop_template {
             if let Err(error) = region
@@ -160,17 +174,26 @@ pub fn timestamp(ms: u32) -> String {
     format!("{}:{:02}.{:03}", ms / 60000, ms / 1000 % 60, ms % 1000)
 }
 
-// Representative IDs from rekordbox's 62-color hot-cue palette (not track colors).
-pub const PALETTE: [(u32, &str); 9] = [
-    (0, "Default"),
+// The 16 swatches sampled from rekordbox-cue-color-selection.png, in reading
+// order. These are exact matches in the 62-color cue palette below; retain the
+// native IDs so saved cues and deck colors agree. Default (0) is separate.
+pub const PALETTE: [(u32, &str); 16] = [
+    (0x31, "Magenta"),    // #DE44CF
+    (0x38, "Purple"),     // #B432FF
+    (0x3c, "Lavender"),   // #AA72FF
+    (0x3e, "Periwinkle"), // #6473FF
     (0x01, "Blue"),
+    (0x05, "Sky blue"),
     (0x09, "Cyan"),
+    (0x0e, "Teal"),
+    (0x12, "Emerald"),
     (0x16, "Green"),
     (0x1a, "Lime"),
-    (0x24, "Orange"),
+    (0x1e, "Yellow green"),
+    (0x20, "Gold"),
+    (0x26, "Orange"),
     (0x2a, "Red"),
     (0x2d, "Pink"),
-    (0x35, "Purple"),
 ];
 pub fn color(id: u32) -> Color32 {
     const HEX: [u32; 63] = [
@@ -195,6 +218,30 @@ pub fn color(id: u32) -> Color32 {
 mod tests {
     use super::*;
     use crate::beat_grid::{Beat, TrackAnalysis};
+    #[test]
+    fn defaults_apply_to_empty_hot_slots_and_never_replace_existing_colors() {
+        let grid = BeatGrid::default();
+        let colors = [49, 56, 60, 62, 1, 5, 9, 14];
+        let cues = [Cue {
+            number: 2,
+            kind: "cue".into(),
+            loop_ms: -1,
+            color_id: 99,
+            ..Default::default()
+        }];
+        let mut edit = Editor::new(&cues, 1, 1.0, 10.0, &grid, colors);
+        assert_eq!(edit.draft.color_id, 49);
+        edit.draft.color_id = 42;
+        edit.place(2.0, 10.0, &grid);
+        assert_eq!(edit.draft.color_id, 42);
+        edit = edit.select(&cues, 2, 1.0, 10.0, &grid);
+        assert_eq!(edit.draft, cues[0]);
+        edit = edit.select(&cues, 8, 1.0, 10.0, &grid);
+        assert_eq!(edit.draft.color_id, 14);
+        edit = edit.select(&cues, 9, 1.0, 10.0, &grid);
+        assert_eq!(edit.draft.color_id, 0);
+    }
+
     #[test]
     fn snap_uses_saved_grid_and_free_placement_keeps_milliseconds() {
         let grid = BeatGrid::new(
@@ -234,6 +281,7 @@ mod tests {
             4.0,
             10.0,
             &BeatGrid::default(),
+            [0; 8],
         );
         edit.place(4.0, 10.0, &BeatGrid::default());
         assert_eq!((edit.draft.time_ms, edit.draft.loop_ms), (4000, 6000));
@@ -248,7 +296,7 @@ mod tests {
     #[test]
     fn moving_new_loop_then_selecting_slot_preserves_edited_endpoints() {
         let grid = BeatGrid::default();
-        let mut edit = Editor::new(&[], 1, 1.0, 10.0, &grid);
+        let mut edit = Editor::new(&[], 1, 1.0, 10.0, &grid, [0; 8]);
         edit.loop_template = Some(crate::loops::Region {
             start: 1.0,
             end: 3.0,

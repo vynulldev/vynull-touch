@@ -130,7 +130,7 @@ pub fn position(player: &Player, assets: &Assets, elapsed: Duration, fresh: bool
         } else {
             0.5
         });
-    let playing = player.is_playing && player.play_state_name != "REVERSE";
+    let playing = player.is_forward_playback();
     let age = f64::from(player.beat_age_ms) / 1000.0 + elapsed.as_secs_f64();
     if playing && age > (span / rate * 1.5).clamp(2.0, 4.0) {
         return None;

@@ -86,6 +86,7 @@ fn eight_pads_fit_below_detail_and_taps_create_snapped_cues_without_interrupting
                 assert!((1.9..=6.1).contains(&(rect.top() - waveform.bottom())));
             }
             app.position = 32.18;
+            app.hot_cue_colors[4] = 49;
             app.preview.toggle(app.position);
             app.show_grid = false; // Hiding grid lines must not turn snapping off.
             let before = app.preview.request.clone();
@@ -103,6 +104,7 @@ fn eight_pads_fit_below_detail_and_taps_create_snapped_cues_without_interrupting
                 .unwrap()
                 .clone();
             assert_eq!(saved.time_ms, 32000);
+            assert_eq!(saved.color_id, 49);
             assert_eq!(app.position, 32.18);
             assert!(app.preview.request.playing);
             assert_eq!(app.preview.request.revision, before.revision);

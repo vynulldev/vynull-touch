@@ -3,6 +3,55 @@ use super::*;
 use crate::app::tests::{click, frame};
 
 #[test]
+fn cue_play_requests_smooth_repaints_in_cards_waveforms_and_focus() {
+    for (compare, focus) in [(false, None), (true, None), (false, Some(1))] {
+        let ctx = Context::default();
+        let mut app = App::new(
+            &ctx,
+            Options {
+                demo: true,
+                ..Default::default()
+            },
+            None,
+        );
+        app.preview = Controller::test().0;
+        app.page = Page::Players;
+        app.deck_compare = compare;
+        app.deck_focus = focus;
+        for p in &mut app.status.players {
+            p.is_playing = false;
+            p.play_state = 6;
+            p.play_state_name = "CUED".into();
+        }
+        let render = |app: &mut App| {
+            let mut delay = Duration::ZERO;
+            for _ in 0..20 {
+                let mut output = ctx.run_ui(
+                    RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 480.0))),
+                        ..Default::default()
+                    },
+                    |ui| app.render(ui),
+                );
+                delay = output.viewport_output[&ViewportId::ROOT].repaint_delay;
+                output.textures_delta.clear();
+            }
+            delay
+        };
+        assert!(
+            render(&mut app) > Duration::from_millis(16),
+            "cued decks should be static"
+        );
+        app.status.players[0].play_state = 7;
+        app.status.players[0].play_state_name = "CUE PLAY".into();
+        assert!(
+            render(&mut app) <= Duration::from_millis(16),
+            "cue-play must animate in compare={compare}, focus={focus:?}"
+        );
+    }
+}
+
+#[test]
 fn cued_and_paused_decks_draw_waveforms_without_a_beat_counter() {
     for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0)] {
         for (state, name, beat) in [(5, "PAUSED", 0), (6, "CUED", u32::MAX)] {

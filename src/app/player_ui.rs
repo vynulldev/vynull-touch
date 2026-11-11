@@ -177,7 +177,10 @@ impl App {
                     self.deck_card(ui, rect, number);
                 }
             });
-        if self.fresh() && self.linked && self.status.players.iter().any(|p| p.is_playing) {
+        if self.fresh()
+            && self.linked
+            && self.status.players.iter().any(Player::is_forward_playback)
+        {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
     }
@@ -197,7 +200,7 @@ impl App {
             .cloned();
         if self.options.demo
             && let Some(p) = &mut player
-            && p.is_playing
+            && p.is_forward_playback()
         {
             let beats = self.demo_started.elapsed().as_secs_f64() * p.bpm / 60.0
                 * (1.0 + p.pitch_pct / 100.0);

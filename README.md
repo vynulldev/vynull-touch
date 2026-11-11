@@ -65,11 +65,12 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - Local audio preview, a millisecond cursor readout, **Quantize**, beat jumps of
   1–32 beats, and beat loops with **½ / ×2**.
 - Hot cues A–H: tap an empty pad to set one, tap to jump, hold to edit. **Edit
-  cues…** moves, labels and colors hot and memory cues
+  cues…** moves, labels and colors hot and memory cues in rekordbox's 16 cue colors
   ([previews](docs/cue-preview-800x480.png), [Inspect](docs/cue-inspect-800x480.png),
   [zoomed out](docs/cue-inspect-fit-1280x800.png)).
 - **Edit grid:** nudge the grid by 0.1–50 ms, set beat 1 at the cursor, or type a
-  BPM. Analysis-locked grids stay read-only.
+  BPM, with **Undo / Redo** (Ctrl+Z, Ctrl+Shift+Z). **Analysis lock** protects a
+  grid from edits and re-analysis.
 - **Back** or Escape returns to wherever Inspect was opened from, with its
   selection, scroll and view intact. Previewing never moves a deck.
 
@@ -78,7 +79,7 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - **Waveforms** (the default): two stacked scrolling waveforms with aligned
   playheads, after the OPUS-QUAD. **Cards** shows two or four players with artwork
   and overviews; tap a player for its full-width view. **Pair…** picks any two.
-- Playheads are estimated from Link status between updates.
+- Playheads are estimated from Link status between updates, held CUE included.
   Times marked **~** are estimates; stale status hides the live playhead and
   disables loading.
 - Phrase strips with the current section, and bars/beats countdowns to the next
@@ -91,6 +92,9 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 
 - Server, startup tab, waveform style (Auto, RGB, 3-band, Blue) and full-track
   shape, preview audio output and volume.
+- **Cue colors…:** a default color for each hot cue pad A–H.
+- **CDJ & mixer…:** Vynull's shared CDJ, display and mixer settings (46 fields),
+  and the CDJ menu's categories, sort options and detail column.
 - **Diagnostics:** status, versions, request errors, the Vynull log, and a report
   to copy.
 
@@ -109,7 +113,9 @@ in the background.
 - **Background refresh:** track revisions; cue refresh also needs the cue
   revision and batch endpoints. Without them, use **Refresh**.
 - **Cue labels and confirmed saves:** Vynull #175 and #170.
-- **Grid editing:** `/api/tracks/{id}/beats` and `/api/analysis/beatgrid/adjust`.
+- **Grid editing:** `/api/tracks/{id}/beats`, `/api/analysis/beatgrid/adjust` and
+  `/api/tracks/{id}/lock`; Undo/Redo needs `/api/analysis/beatgrid/restore`
+  (Vynull #183) and is disabled without it.
 - **Preview audio:** `/api/audio/{id}?transcode=1`, which needs ffmpeg on the
   Vynull machine.
 - **Optional:** phrases, 3-band waveforms, `/api/version` and `/api/diag/logs`.

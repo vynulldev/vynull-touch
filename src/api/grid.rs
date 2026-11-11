@@ -20,6 +20,8 @@ impl Api {
             grid: TrackAnalysis,
             bpm: f64,
             duration_sec: u32,
+            #[serde(default)]
+            grid_snapshot: Option<crate::grid_edit::RawGrid>,
         }
         let analysis: Analysis = self.get(&format!("api/analysis/{}", track.id))?;
         if !settings.bpm.is_finite()
@@ -31,13 +33,22 @@ impl Api {
             return Err("Invalid grid settings from daemon".into());
         }
         let grid = BeatGrid::new(analysis.grid, track.id)?;
-        Ok(Snapshot {
+        let saved = Snapshot {
+            raw: analysis.grid_snapshot,
             track,
             grid,
             settings,
             bpm: analysis.bpm,
             duration_sec: analysis.duration_sec,
-        })
+        };
+        if saved
+            .raw
+            .as_ref()
+            .is_some_and(|raw| !raw.consistent(&saved))
+        {
+            return Err("Grid snapshot differs from the current track or beat grid".into());
+        }
+        Ok(saved)
     }
 
     fn grid_write(
@@ -94,6 +105,18 @@ impl Api {
         // No retries: relative nudges may already have applied after a lost reply.
         // The daemon has no atomic grid transaction or conditional-write token.
         match change {
+            GridChange::Lock(locked) => {
+                #[derive(Deserialize)]
+                struct Lock {
+                    locked: bool,
+                }
+                let path = format!("api/tracks/{}/lock", track.id);
+                self.grid_write(Method::PUT, &path, json!({"locked":locked}))?;
+                let saved: Lock = self.get(&path)?;
+                if saved.locked != locked {
+                    return Err("Analysis lock readback differs from the requested change".into());
+                }
+            }
             GridChange::Nudge(ms) => self.grid_write(
                 Method::POST,
                 adjust,
@@ -118,6 +141,9 @@ impl Api {
                     let mut beats = before.grid.beats().to_vec();
                     for beat in &mut beats {
                         beat.time_ms += offset;
+                    }
+                    if let Some(raw) = &mut expected_shift.raw {
+                        raw.beats_ms.iter_mut().for_each(|b| *b += offset);
                     }
                     expected_shift.grid = BeatGrid::new(
                         TrackAnalysis {
@@ -144,5 +170,37 @@ impl Api {
             return Err("Grid readback differs from the requested edit".into());
         }
         Ok(after)
+    }
+    pub(super) fn restore_grid(
+        &self,
+        track: &Track,
+        expected: &Snapshot,
+        target: &Snapshot,
+    ) -> Result<Box<Snapshot>, String> {
+        let result = (|| {
+            if self.session.is_none() {
+                return Err("Library identity is required for Undo/Redo".into());
+            }
+            let before = self.grid_snapshot(track)?;
+            if !before.matches(expected) {
+                return Err("Grid or analysis lock changed elsewhere".into());
+            }
+            let desired = before.restore(target)?;
+            self.grid_write(
+                Method::POST,
+                "api/analysis/beatgrid/restore",
+                json!({
+                    "track_id":track.id, "expected":before.raw, "restore":desired.raw,
+                }),
+            )?;
+            let after = self.grid_snapshot(track)?;
+            if !after.matches(&desired) {
+                return Err("Restored grid readback differs from history".into());
+            }
+            Ok(Box::new(after))
+        })();
+        result.map_err(|e: String| {
+            format!("Undo/Redo not confirmed. Reload grid before continuing. {e}")
+        })
     }
 }

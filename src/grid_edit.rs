@@ -5,6 +5,10 @@ use crate::{
 };
 use serde::Deserialize;
 
+mod snapshot;
+pub use snapshot::RawGrid;
+pub mod history;
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Settings {
     pub bpm: f64,
@@ -13,6 +17,7 @@ pub struct Settings {
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
+    pub raw: Option<RawGrid>,
     pub track: Track,
     pub grid: BeatGrid,
     pub bpm: f64,
@@ -22,19 +27,42 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn matches(&self, other: &Self) -> bool {
-        self.track.id == other.track.id
+        self.track.analysis_locked == other.track.analysis_locked && self.matches_grid(other)
+    }
+
+    pub fn matches_grid(&self, other: &Self) -> bool {
+        self.raw == other.raw
+            && self.track.id == other.track.id
             && self.track.file_path == other.track.file_path
-            && self.track.analysis_locked == other.track.analysis_locked
             && (self.track.bpm - other.track.bpm).abs() < 0.000_001
             && self.settings == other.settings
             && (self.bpm - other.bpm).abs() < 0.000_001
             && self.duration_sec == other.duration_sec
             && self.grid.matches(&other.grid)
     }
+    pub fn restore(&self, target: &Self) -> Result<Self, &'static str> {
+        if self.track.analysis_locked {
+            return Err("Turn off Analysis lock before Undo or Redo");
+        }
+        if self.track.id != target.track.id
+            || self.track.file_path != target.track.file_path
+            || self.duration_sec != target.duration_sec
+        {
+            return Err("Track source or duration changed; reload the grid");
+        }
+        if self.raw.is_none() || target.raw.is_none() {
+            return Err("Update Vynull to enable grid Undo/Redo");
+        }
+        let mut restored = target.clone();
+        restored.track = self.track.clone();
+        restored.track.bpm = target.track.bpm;
+        Ok(restored)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Change {
+    Lock(bool),
     Nudge(f64),
     Downbeat(f64),
     Tempo(f64),
@@ -57,15 +85,20 @@ impl Change {
     }
 
     pub fn apply(self, before: &Snapshot) -> Result<Snapshot, &'static str> {
-        if before.track.analysis_locked {
-            return Err("Analysis is locked. Unlock it in Vynull before editing.");
+        let lock_change = matches!(self, Self::Lock(_));
+        if before.track.analysis_locked && !lock_change {
+            return Err("Analysis is locked. Turn off Analysis lock before editing.");
         }
-        if before.grid.is_empty() {
+        if before.grid.is_empty() && !lock_change {
             return Err("No grid to edit; analyze the track first");
         }
         let mut after = before.clone();
         let mut beats = before.grid.beats().to_vec();
         match self {
+            Self::Lock(locked) => {
+                after.track.analysis_locked = locked;
+                return Ok(after);
+            }
             Self::Nudge(ms) => {
                 if !ms.is_finite() || ms.abs() > 1000.0 {
                     return Err("Nudge must be within one second");
@@ -114,6 +147,9 @@ impl Change {
                 after.track.bpm = bpm;
             }
         }
+        if let Some(raw) = &mut after.raw {
+            raw.apply(self, before);
+        }
         after.grid = BeatGrid::new(
             TrackAnalysis {
                 track_id: before.track.id,
@@ -130,6 +166,7 @@ mod tests {
     use super::*;
     fn snapshot() -> Snapshot {
         Snapshot {
+            raw: None,
             track: Track {
                 id: 1,
                 ..Default::default()
@@ -224,5 +261,89 @@ mod tests {
         let mut empty = before;
         empty.grid = Default::default();
         assert!(Change::Tempo(120.0).apply(&empty).is_err());
+    }
+    #[test]
+    fn analysis_lock_preserves_grid_and_metadata_and_can_unlock_without_beats() {
+        for empty in [false, true] {
+            for locked in [false, true] {
+                let mut before = snapshot();
+                before.track.analysis_locked = locked;
+                if empty {
+                    before.grid = Default::default();
+                }
+                let after = Change::Lock(!locked).apply(&before).unwrap();
+                assert_eq!(after.track.analysis_locked, !locked);
+                let mut restored = after;
+                restored.track.analysis_locked = locked;
+                assert!(restored.matches(&before));
+            }
+        }
+    }
+    #[test]
+    fn raw_snapshots_preserve_underlying_overrides_and_reject_inconsistent_responses() {
+        let mut before = snapshot();
+        before.track.file_path = "/music/track.flac".into();
+        before.track.bpm = 120.0;
+        before.raw = Some(RawGrid::from_snapshot(&before));
+        assert!(before.raw.as_ref().unwrap().consistent(&before));
+        for change in [
+            Change::Nudge(-0.1),
+            Change::Downbeat(950.0),
+            Change::Tempo(60.0),
+        ] {
+            let after = change.apply(&before).unwrap();
+            assert!(after.raw.as_ref().unwrap().consistent(&after));
+            let mut renamed = after.clone();
+            renamed.track.title = "New title".into();
+            let restored = renamed.restore(&before).unwrap();
+            assert!(restored.matches(&before));
+            assert_eq!(restored.track.title, "New title");
+        }
+        let mut overridden = before.clone();
+        let constant = Change::Tempo(100.0).apply(&before).unwrap();
+        overridden.grid = constant.grid;
+        overridden.bpm = 100.0;
+        overridden.track.bpm = 100.0;
+        overridden.settings.bpm = 100.0;
+        overridden.raw.as_mut().unwrap().library_bpm = 100.0;
+        overridden.raw.as_mut().unwrap().detected_bpm = 120.0;
+        assert!(overridden.raw.as_ref().unwrap().consistent(&overridden));
+        let edited = Change::Tempo(90.0).apply(&overridden).unwrap();
+        let restored = edited.restore(&overridden).unwrap();
+        assert!(restored.matches(&overridden));
+        assert_eq!(
+            restored.raw.as_ref().unwrap().beats_ms,
+            before.raw.as_ref().unwrap().beats_ms
+        );
+        let mut invalid = restored.raw.clone().unwrap();
+        invalid.beats_ms[1] = invalid.beats_ms[0];
+        assert!(!invalid.consistent(&restored));
+        invalid = restored.raw.clone().unwrap();
+        invalid.file_path = "/other.flac".into();
+        assert!(!invalid.consistent(&restored));
+        invalid = restored.raw.clone().unwrap();
+        invalid.version = 2;
+        assert!(!invalid.consistent(&restored));
+    }
+
+    #[test]
+    fn grid_history_bounds_saved_states_and_discards_redo_on_new_edit() {
+        use history::{Direction, History};
+        let mut history = History::default();
+        let mut state = snapshot();
+        for _ in 0..100 {
+            history.record(state.clone());
+            state = Change::Nudge(1.0).apply(&state).unwrap();
+        }
+        for _ in 0..64 {
+            let restored = history.target(Direction::Undo).unwrap().clone();
+            history.restored(Direction::Undo, state);
+            state = restored;
+        }
+        assert!(history.target(Direction::Undo).is_none());
+        assert_eq!(state.grid.beats()[0].time_ms, -64.0);
+        assert!(history.target(Direction::Redo).is_some());
+        history.record(state);
+        assert!(history.target(Direction::Redo).is_none());
     }
 }

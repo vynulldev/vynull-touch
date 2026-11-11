@@ -18,6 +18,8 @@ fn loop_controls_fit_resize_exit_save_and_recall_without_autoplay() {
         app.preview = controller;
         app.inspect(app.tracks[0].clone());
         app.position = 32.18;
+        app.hot_cue_colors[4] = 49;
+        app.hot_cue_colors[7] = 9;
         click(&mut app, &ctx, size, "Loop controls");
         frame(&mut app, &ctx, size, vec![]);
         let bounds = Rect::from_min_max(Pos2::ZERO, pos2(size.x, size.y - 26.0));
@@ -77,13 +79,26 @@ fn loop_controls_fit_resize_exit_save_and_recall_without_autoplay() {
         click(&mut app, &ctx, size, "Loop 4");
         click(&mut app, &ctx, size, "Loop save");
         assert!(!requests.borrow().playing);
+        assert_eq!(app.cue_editor.as_ref().unwrap().draft.color_id, 49);
         click(&mut app, &ctx, size, "Edit slot 8");
+        assert_eq!(app.cue_editor.as_ref().unwrap().draft.color_id, 9);
         assert_eq!(app.cue_editor.as_ref().unwrap().draft.kind, "loop");
         assert_eq!(app.cue_editor.as_ref().unwrap().draft.loop_ms, 34000);
         click(&mut app, &ctx, size, "Cue save");
         assert!(app.cue_editor.is_none());
         app.inspect(app.tracks[1].clone());
         app.inspect(app.tracks[0].clone());
+        assert_eq!(
+            app.detail
+                .as_ref()
+                .unwrap()
+                .cues
+                .iter()
+                .find(|cue| cue.number == 8)
+                .unwrap()
+                .color_id,
+            9
+        );
         assert!(requests.borrow().loop_region.is_none());
         click(&mut app, &ctx, size, "Cue 8");
         assert_eq!(

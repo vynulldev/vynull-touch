@@ -16,6 +16,8 @@ pub struct Settings {
     pub waveform_zoom: f64,
     pub beat_jump_beats: u8,
     pub inspect_quantize: bool,
+    #[serde(deserialize_with = "deserialize_hot_cue_colors")]
+    pub hot_cue_colors: [u32; 8],
     pub waveform_style: crate::waveform::Style,
     pub waveform_overview: crate::waveform::Overview,
     pub audio_output: Option<crate::preview::OutputDevice>,
@@ -74,6 +76,7 @@ impl Default for Settings {
             waveform_zoom: DEFAULT_ZOOM,
             beat_jump_beats: 4,
             inspect_quantize: false,
+            hot_cue_colors: [0; 8],
             waveform_style: Default::default(),
             waveform_overview: Default::default(),
             audio_output: None,
@@ -82,6 +85,22 @@ impl Default for Settings {
             library_order: Default::default(),
         }
     }
+}
+
+fn deserialize_hot_cue_colors<'de, D>(deserializer: D) -> Result<[u32; 8], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Recover individual slots without losing unrelated settings to a malformed
+    // preference. Zero retains the original, unset cue color.
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mut colors = [0; 8];
+    if let Some(values) = value.as_array() {
+        for (color, value) in colors.iter_mut().zip(values) {
+            *color = value.as_u64().filter(|id| *id <= 0x3e).unwrap_or(0) as u32;
+        }
+    }
+    Ok(colors)
 }
 
 pub fn path() -> Option<PathBuf> {
@@ -187,6 +206,18 @@ pub fn save_inspect_quantize(path: &Path, enabled: bool) -> io::Result<()> {
     save(path, &settings)
 }
 
+pub fn save_hot_cue_colors(path: &Path, colors: [u32; 8]) -> io::Result<()> {
+    if colors.iter().any(|id| *id > 0x3e) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid hot cue color",
+        ));
+    }
+    let mut settings = load(Some(path));
+    settings.hot_cue_colors = colors;
+    save(path, &settings)
+}
+
 pub fn save_waveform_overview(path: &Path, overview: crate::waveform::Overview) -> io::Result<()> {
     let mut settings = load(Some(path));
     settings.waveform_overview = overview;
@@ -260,6 +291,45 @@ fn save(path: &Path, settings: &Settings) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cue_defaults_round_trip_preserve_other_preferences_and_recover_bad_slots() {
+        let root = std::env::temp_dir().join(format!("vynull-cue-defaults-{}", std::process::id()));
+        let path = root.join("settings.json");
+        save_server(&path, "http://pi.local:9443").unwrap();
+        save_zoom(&path, 32.0).unwrap();
+        assert_eq!(load(Some(&path)).hot_cue_colors, [0; 8]);
+        let colors = [49, 56, 60, 62, 1, 5, 9, 14];
+        save_hot_cue_colors(&path, colors).unwrap();
+        save_audio(&path, None, 0.25).unwrap();
+        let saved = load(Some(&path));
+        assert_eq!(saved.hot_cue_colors, colors);
+        assert_eq!(saved.waveform_zoom, 32.0);
+        assert_eq!(saved.server.as_deref(), Some("http://pi.local:9443"));
+        assert_eq!(saved.audio_volume, 0.25);
+        assert!(save_hot_cue_colors(&path, [63; 8]).is_err());
+        assert_eq!(load(Some(&path)).hot_cue_colors, colors);
+
+        for (value, expected) in [
+            (
+                "[49,62,63,-1,9.5,\"red\",null,1,42]",
+                [49, 62, 0, 0, 0, 0, 0, 1],
+            ),
+            ("[42,9]", [42, 9, 0, 0, 0, 0, 0, 0]),
+            ("null", [0; 8]),
+            ("{}", [0; 8]),
+        ] {
+            fs::write(
+                &path,
+                format!("{{\"hot_cue_colors\":{value},\"waveform_zoom\":64}}"),
+            )
+            .unwrap();
+            let saved = load(Some(&path));
+            assert_eq!(saved.hot_cue_colors, expected);
+            assert_eq!(saved.waveform_zoom, 64.0);
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn waveform_styles_persist_and_unknown_names_preserve_other_preferences() {

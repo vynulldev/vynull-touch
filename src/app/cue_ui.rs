@@ -51,6 +51,7 @@ impl App {
             self.position,
             self.preview_duration(track),
             &detail.beat_grid,
+            self.hot_cue_colors,
         ));
     }
 
@@ -91,6 +92,7 @@ impl App {
             self.position,
             duration,
             &detail.beat_grid,
+            self.hot_cue_colors,
         );
         if !editor.error.is_empty() {
             self.notice = editor.error;
@@ -315,6 +317,7 @@ impl App {
                 self.position,
                 f64::from(track.duration),
                 &detail.beat_grid,
+                self.hot_cue_colors,
             );
         } else if self.send(Command::Cues {
             track: Box::new(track),
@@ -472,25 +475,35 @@ impl App {
                     editor.typing = true;
                 }
                 ui.horizontal(|ui| {
-                    for (id, name) in cues::PALETTE {
-                        let response = ui.add_sized(
-                            vec2(48.0, 48.0),
-                            Button::new(if id == 0 { "D" } else { "" })
-                                .fill(cues::color(id).gamma_multiply(0.7))
-                                .stroke(Stroke::new(
-                                    if editor.draft.color_id == id {
-                                        2.0
-                                    } else {
-                                        0.0
-                                    },
-                                    TEXT,
-                                )),
-                        );
-                        self.hit(&format!("Cue color {id}"), response.rect);
-                        if response.clicked() {
-                            editor.draft.color_id = id;
+                    ui.vertical(|ui| {
+                        for row in cues::PALETTE.chunks(8) {
+                            ui.horizontal(|ui| {
+                                for &(id, name) in row {
+                                    let response = ui.add_sized(
+                                        vec2(48.0, 48.0),
+                                        Button::new("").fill(cues::color(id)).stroke(Stroke::new(
+                                            if editor.draft.color_id == id {
+                                                2.0
+                                            } else {
+                                                0.0
+                                            },
+                                            TEXT,
+                                        )),
+                                    );
+                                    self.hit(&format!("Cue color {id}"), response.rect);
+                                    if response.clicked() {
+                                        editor.draft.color_id = id;
+                                    }
+                                    response.on_hover_text(name);
+                                }
+                            });
                         }
-                        response.on_hover_text(name);
+                    });
+                    let reset =
+                        theme::button(ui, "Default", vec2(112.0, 48.0), editor.draft.color_id == 0);
+                    self.hit("Cue color 0", reset.rect);
+                    if reset.clicked() {
+                        editor.draft.color_id = 0;
                     }
                 });
                 ui.horizontal(|ui| {

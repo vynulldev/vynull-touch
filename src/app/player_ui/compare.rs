@@ -55,7 +55,10 @@ impl App {
                     }
                 });
             });
-        if self.fresh() && self.linked && self.status.players.iter().any(|p| p.is_playing) {
+        if self.fresh()
+            && self.linked
+            && self.status.players.iter().any(Player::is_forward_playback)
+        {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
     }

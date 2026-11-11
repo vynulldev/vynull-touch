@@ -1,0 +1,317 @@
+{
+  "full": {
+    "my_setting": {
+      "on_air_display": "on",
+      "lcd_brightness": "three",
+      "quantize": "on",
+      "auto_cue_level": "memory",
+      "language": "english",
+      "jog_ring_brightness": "bright",
+      "jog_ring_indicator": "on",
+      "slip_flashing": "on",
+      "disc_slot_illumination": "bright",
+      "eject_lock": "unlock",
+      "sync": "off",
+      "play_mode": "single",
+      "quantize_beat_value": "one",
+      "hotcue_autoload": "on",
+      "hotcue_color": "off",
+      "needle_lock": "lock",
+      "time_mode": "remain",
+      "jog_mode": "vinyl",
+      "auto_cue": "on",
+      "master_tempo": "off",
+      "tempo_range": "ten",
+      "phase_meter": "type1"
+    },
+    "my_setting_2": {
+      "vinyl_speed_adjust": "touch",
+      "jog_display_mode": "auto",
+      "pad_button_brightness": "three",
+      "jog_lcd_brightness": "three",
+      "waveform_divisions": "phrase",
+      "waveform": "waveform",
+      "beat_jump_beat_value": "sixteen"
+    },
+    "djm_my_setting": {
+      "channel_fader_curve": "linear",
+      "cross_fader_curve": "fast_cut",
+      "headphones_pre_eq": "post_eq",
+      "headphones_mono_split": "stereo",
+      "beat_fx_quantize": "on",
+      "mic_low_cut": "on",
+      "talk_over_mode": "advanced",
+      "talk_over_level": "minus_18db",
+      "midi_channel": "one",
+      "midi_button_type": "toggle",
+      "display_brightness": "five",
+      "indicator_brightness": "three",
+      "channel_fader_curve_long": "exponential"
+    },
+    "dev_setting": {
+      "overview_type": "full",
+      "waveform_color": "rgb",
+      "key_display": "alphanumeric",
+      "wave_position": "center"
+    },
+    "track_detail": "artist"
+  },
+  "enums": {
+    "on_air_display": [
+      "off",
+      "on"
+    ],
+    "lcd_brightness": [
+      "one",
+      "two",
+      "three",
+      "four",
+      "five"
+    ],
+    "quantize": [
+      "off",
+      "on"
+    ],
+    "auto_cue_level": [
+      "minus_36db",
+      "minus_42db",
+      "minus_48db",
+      "minus_54db",
+      "minus_60db",
+      "minus_66db",
+      "minus_72db",
+      "minus_78db",
+      "memory"
+    ],
+    "language": [
+      "english",
+      "french",
+      "german",
+      "italian",
+      "dutch",
+      "spanish",
+      "russian",
+      "korean",
+      "chinese_simplified",
+      "chinese_traditional",
+      "japanese",
+      "portuguese",
+      "swedish",
+      "czech",
+      "hungarian",
+      "danish",
+      "greek",
+      "turkish"
+    ],
+    "jog_ring_brightness": [
+      "off",
+      "dark",
+      "bright"
+    ],
+    "jog_ring_indicator": [
+      "off",
+      "on"
+    ],
+    "slip_flashing": [
+      "off",
+      "on"
+    ],
+    "disc_slot_illumination": [
+      "off",
+      "dark",
+      "bright"
+    ],
+    "eject_lock": [
+      "unlock",
+      "lock"
+    ],
+    "sync": [
+      "off",
+      "on"
+    ],
+    "play_mode": [
+      "continue",
+      "single"
+    ],
+    "quantize_beat_value": [
+      "one",
+      "half",
+      "quarter",
+      "eighth"
+    ],
+    "hotcue_autoload": [
+      "off",
+      "on",
+      "rekordbox_setting"
+    ],
+    "hotcue_color": [
+      "off",
+      "on"
+    ],
+    "needle_lock": [
+      "unlock",
+      "lock"
+    ],
+    "time_mode": [
+      "elapsed",
+      "remain"
+    ],
+    "jog_mode": [
+      "cdj",
+      "vinyl"
+    ],
+    "auto_cue": [
+      "off",
+      "on"
+    ],
+    "master_tempo": [
+      "off",
+      "on"
+    ],
+    "tempo_range": [
+      "six",
+      "ten",
+      "sixteen",
+      "wide"
+    ],
+    "phase_meter": [
+      "type1",
+      "type2"
+    ],
+    "vinyl_speed_adjust": [
+      "touch_release",
+      "touch",
+      "release"
+    ],
+    "jog_display_mode": [
+      "auto",
+      "info",
+      "simple",
+      "artwork"
+    ],
+    "pad_button_brightness": [
+      "one",
+      "two",
+      "three",
+      "four"
+    ],
+    "jog_lcd_brightness": [
+      "one",
+      "two",
+      "three",
+      "four",
+      "five"
+    ],
+    "waveform_divisions": [
+      "time_scale",
+      "phrase"
+    ],
+    "waveform": [
+      "waveform",
+      "phase_meter"
+    ],
+    "beat_jump_beat_value": [
+      "half",
+      "one",
+      "two",
+      "four",
+      "eight",
+      "sixteen",
+      "thirty_two",
+      "sixty_four"
+    ],
+    "channel_fader_curve": [
+      "steep_top",
+      "linear",
+      "steep_bottom"
+    ],
+    "cross_fader_curve": [
+      "constant",
+      "slow_cut",
+      "fast_cut"
+    ],
+    "headphones_pre_eq": [
+      "post_eq",
+      "pre_eq"
+    ],
+    "headphones_mono_split": [
+      "stereo",
+      "mono_split"
+    ],
+    "beat_fx_quantize": [
+      "off",
+      "on"
+    ],
+    "mic_low_cut": [
+      "off",
+      "on"
+    ],
+    "talk_over_mode": [
+      "advanced",
+      "normal"
+    ],
+    "talk_over_level": [
+      "minus_24db",
+      "minus_18db",
+      "minus_12db",
+      "minus_6db"
+    ],
+    "midi_channel": [
+      "one",
+      "two",
+      "three",
+      "four",
+      "five",
+      "six",
+      "seven",
+      "eight",
+      "nine",
+      "ten",
+      "eleven",
+      "twelve",
+      "thirteen",
+      "fourteen",
+      "fifteen",
+      "sixteen"
+    ],
+    "midi_button_type": [
+      "toggle",
+      "trigger"
+    ],
+    "display_brightness": [
+      "white",
+      "one",
+      "two",
+      "three",
+      "four",
+      "five"
+    ],
+    "indicator_brightness": [
+      "one",
+      "two",
+      "three"
+    ],
+    "channel_fader_curve_long": [
+      "exponential",
+      "smooth",
+      "linear"
+    ],
+    "overview_type": [
+      "half",
+      "full"
+    ],
+    "waveform_color": [
+      "blue",
+      "rgb",
+      "3band"
+    ],
+    "key_display": [
+      "classic",
+      "alphanumeric"
+    ],
+    "wave_position": [
+      "center",
+      "left"
+    ]
+  }
+}

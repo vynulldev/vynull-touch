@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
-use crate::grid_edit::{Change, Settings, Snapshot};
+use crate::grid_edit::{
+    Change, RawGrid, Settings, Snapshot,
+    history::{Direction, History},
+};
+
+#[derive(Clone, Copy)]
+enum HistoryAction {
+    Edit,
+    Restore(Direction),
+}
 
 #[cfg(test)]
 mod tests;
@@ -10,6 +19,8 @@ pub(super) struct Editor {
     pub pending: bool,
     pub needs_reload: bool,
     snapshot: Option<Snapshot>,
+    history: History,
+    pending_history: Option<HistoryAction>,
     bpm: String,
     typing: bool,
     step: f64,
@@ -23,15 +34,19 @@ impl Editor {
             pending: false,
             needs_reload: true,
             snapshot: None,
+            history: History::default(),
+            pending_history: None,
             bpm: String::new(),
             typing: false,
             step: 1.0,
             status: String::new(),
         }
     }
+    fn ready(&self) -> bool {
+        !self.pending && !self.needs_reload && self.snapshot.is_some()
+    }
     fn writable(&self) -> bool {
-        !self.pending
-            && !self.needs_reload
+        self.ready()
             && self
                 .snapshot
                 .as_ref()
@@ -60,7 +75,7 @@ impl App {
     }
 
     fn grid_submit(&mut self, editor: &mut Editor, change: Option<Change>) {
-        if editor.pending || (change.is_some() && !editor.writable()) {
+        if editor.pending || (change.is_some() && !editor.ready()) {
             return;
         }
         let Some(track) = self.detail_track.clone() else {
@@ -76,12 +91,16 @@ impl App {
             }
         }
         editor.status.clear();
+        editor.pending_history = change
+            .filter(|c| !matches!(c, Change::Lock(_)))
+            .map(|_| HistoryAction::Edit);
         if self.options.demo {
-            let before = self
+            let mut before = self
                 .demo_grids
                 .get(&track.id)
                 .cloned()
                 .unwrap_or_else(|| Snapshot {
+                    raw: None,
                     grid: self.detail.as_ref().unwrap().beat_grid.clone(),
                     bpm: track.bpm,
                     duration_sec: track.duration,
@@ -91,6 +110,9 @@ impl App {
                     },
                     track,
                 });
+            if before.raw.is_none() {
+                before.raw = Some(RawGrid::from_snapshot(&before));
+            }
             let result = change.map_or_else(
                 || Ok(before.clone()),
                 |change| change.apply(&before).map_err(str::to_owned),
@@ -104,6 +126,7 @@ impl App {
                 change,
             });
             if !editor.pending {
+                editor.pending_history = None;
                 editor.status = self.notice.clone();
             }
         }
@@ -123,6 +146,7 @@ impl App {
         result: Result<Snapshot, String>,
     ) {
         editor.pending = false;
+        let history_action = editor.pending_history.take();
         if let Some(track) = &self.detail_track {
             self.demo_decks.remove(&track.id);
             if let Some(cache) = &mut self.deck_cache {
@@ -133,6 +157,7 @@ impl App {
         }
         match result {
             Err(error) => {
+                editor.history.clear();
                 editor.needs_reload = true;
                 // The daemon may have changed while its reply was lost. Avoid
                 // snapping new cues or loops to a grid we can no longer confirm.
@@ -150,12 +175,42 @@ impl App {
                 {
                     return;
                 }
+                if let Some(before) = &editor.snapshot {
+                    let changed = !before.matches_grid(&saved);
+                    match history_action {
+                        Some(HistoryAction::Edit)
+                            if changed && before.raw.is_some() && saved.raw.is_some() =>
+                        {
+                            editor.history.record(before.clone())
+                        }
+                        Some(HistoryAction::Restore(direction)) => {
+                            editor.history.restored(direction, before.clone())
+                        }
+                        None if changed => editor.history.clear(),
+                        _ => (),
+                    }
+                }
                 editor.needs_reload = false;
-                editor.bpm = format!("{:.2}", saved.bpm);
+                let lock_changed = edited
+                    && editor.snapshot.as_ref().is_some_and(|before| {
+                        before.track.analysis_locked != saved.track.analysis_locked
+                    });
+                // A lock toggle must not discard an un-applied BPM draft.
+                if !lock_changed {
+                    editor.bpm = format!("{:.2}", saved.bpm);
+                }
                 editor.status = if saved.track.analysis_locked {
-                    "Analysis is locked. Unlock it in Vynull before editing.".into()
+                    "Analysis locked · Turn off Analysis lock to edit the grid".into()
                 } else if saved.grid.is_empty() {
                     "No beat grid. Analyze this track in Vynull first.".into()
+                } else if saved.raw.is_none() {
+                    "Update Vynull to enable grid Undo/Redo · Edits save immediately".into()
+                } else if matches!(history_action, Some(HistoryAction::Restore(_))) {
+                    if self.options.demo {
+                        "Restored · demo session only".into()
+                    } else {
+                        "Restored and read back from Vynull".into()
+                    }
                 } else if !edited {
                     "Nudges preserve timing · Apply BPM rebuilds a steady grid".into()
                 } else if self.options.demo {
@@ -181,6 +236,57 @@ impl App {
                 editor.snapshot = Some(saved);
             }
         }
+    }
+
+    fn grid_history_submit(&mut self, editor: &mut Editor, direction: Direction) {
+        if !editor.writable() || self.preview.request.dragging {
+            return;
+        }
+        let Some(target) = editor.history.target(direction).cloned() else {
+            return;
+        };
+        let before = editor.snapshot.as_ref().unwrap();
+        let desired = match before.restore(&target) {
+            Ok(saved) => saved,
+            Err(error) => {
+                editor.status = error.into();
+                return;
+            }
+        };
+        editor.pending_history = Some(HistoryAction::Restore(direction));
+        if self.options.demo {
+            self.grid_complete(editor, true, Ok(desired));
+        } else {
+            editor.pending = self.send(Command::GridRestore {
+                track: Box::new(before.track.clone()),
+                token: self.token,
+                expected: Box::new(before.clone()),
+                target: Box::new(target),
+            });
+            if !editor.pending {
+                editor.pending_history = None;
+                editor.status = self.notice.clone();
+            }
+        }
+    }
+
+    pub(super) fn grid_history_controls(&mut self, ui: &mut Ui) {
+        let Some(mut editor) = self.grid_editor.take() else {
+            return;
+        };
+        // Header uses right-to-left layout; Undo appears to the left of Redo.
+        for (label, direction) in [("Redo", Direction::Redo), ("Undo", Direction::Undo)] {
+            let enabled = editor.writable()
+                && editor.history.target(direction).is_some()
+                && (self.options.demo || self.library_session.is_some());
+            let clicked = ui
+                .add_enabled_ui(enabled, |ui| self.grid_button(ui, label, 88.0, false))
+                .inner;
+            if clicked {
+                self.grid_history_submit(&mut editor, direction);
+            }
+        }
+        self.grid_editor = Some(editor);
     }
 
     fn grid_button(&mut self, ui: &mut Ui, label: &str, width: f32, active: bool) -> bool {
@@ -220,6 +326,97 @@ impl App {
         } else {
             editor.status.clone()
         }
+    }
+
+    pub(super) fn grid_lock_control(&mut self, ui: &mut Ui, rect: Rect) {
+        let Some(mut editor) = self.grid_editor.take() else {
+            return;
+        };
+        let locked = editor
+            .snapshot
+            .as_ref()
+            .is_some_and(|s| s.track.analysis_locked);
+        let known = editor.snapshot.is_some() && !editor.needs_reload;
+        let enabled = editor.ready() && (self.options.demo || self.library_session.is_some());
+        let color = if enabled && locked {
+            ORANGE
+        } else if enabled {
+            TEXT
+        } else {
+            MUTED
+        };
+        let response = ui.place(
+            rect,
+            Button::new("")
+                .fill(if known && locked { SELECTED } else { CARD })
+                .corner_radius(8)
+                .sense(if enabled {
+                    Sense::click()
+                } else {
+                    Sense::hover()
+                }),
+        );
+        response.widget_info(|| {
+            if known {
+                WidgetInfo::selected(Role::CheckBox, enabled, locked, "Analysis lock")
+            } else {
+                WidgetInfo::labeled(
+                    Role::CheckBox,
+                    false,
+                    "Analysis lock unknown; reload required",
+                )
+            }
+        });
+        self.hit("Grid analysis lock", response.rect);
+        let painter = ui.painter();
+        let label = rect.shrink2(vec2(10.0, 0.0));
+        theme::text(
+            painter,
+            label.with_max_y(rect.top() + 24.0),
+            "Analysis lock",
+            14.0,
+            color,
+        );
+        let state = if editor.pending {
+            "Waiting…"
+        } else if !known {
+            "Reload required"
+        } else if locked {
+            "On · Grid protected"
+        } else {
+            "Off · Unlocked"
+        };
+        theme::text(
+            painter,
+            label.with_min_y(rect.top() + 24.0),
+            state,
+            12.0,
+            MUTED,
+        );
+        let switch = Rect::from_center_size(
+            pos2(rect.right() - 28.0, rect.top() + 14.0),
+            vec2(36.0, 18.0),
+        );
+        painter.rect_filled(switch, 9, if known && locked { color } else { LINE });
+        if known {
+            painter.circle_filled(
+                pos2(
+                    if locked {
+                        switch.right() - 9.0
+                    } else {
+                        switch.left() + 9.0
+                    },
+                    switch.center().y,
+                ),
+                6.0,
+                if locked { BG } else { MUTED },
+            );
+        }
+        if response.clicked() && enabled {
+            self.grid_submit(&mut editor, Some(Change::Lock(!locked)));
+        }
+        response.on_hover_text("Protect this track's analysis from grid edits and re-analysis. Changes save immediately.");
+        self.grid_editor = Some(editor);
     }
 
     // These two rows replace hot cues and beat-jump/loop controls. They use the
@@ -397,6 +594,23 @@ impl App {
                 }
                 ui.label("20–400 BPM · Done returns to the editor; Apply BPM saves.");
             });
+        }
+        if !was_typing {
+            let direction = ctx.input_mut(|input| {
+                if input.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z)
+                    || input.consume_key(Modifiers::COMMAND, Key::Y)
+                {
+                    Some(Direction::Redo)
+                } else if input.consume_key(Modifiers::COMMAND, Key::Z) {
+                    Some(Direction::Undo)
+                } else {
+                    None
+                }
+            });
+            if let Some(direction) = direction {
+                self.grid_history_submit(&mut editor, direction);
+                ctx.request_repaint();
+            }
         }
         let escape = ctx.input(|i| i.key_pressed(Key::Escape)) && !editor.pending;
         if escape && was_typing {

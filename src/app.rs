@@ -15,8 +15,11 @@ use std::{
     time::{Duration, Instant},
 };
 mod beat_jump_ui;
+mod browser_ui;
 mod connection;
+mod cue_defaults_ui;
 mod cue_ui;
+mod device_settings_ui;
 mod diag_ui;
 mod edit_ui;
 mod grid_ui;
@@ -41,6 +44,7 @@ enum Page {
     Players,
     Match,
     Settings,
+    DeviceSettings,
     Diag,
     Detail,
 }
@@ -95,6 +99,8 @@ pub struct App {
     loop_error: String,
     beat_jump_beats: u8,
     inspect_quantize: bool,
+    hot_cue_colors: [u32; 8],
+    cue_defaults: Option<cue_defaults_ui::Picker>,
     demo_cues: std::collections::HashMap<u32, Vec<Cue>>,
     position: f64,
     zoom: f64,
@@ -106,6 +112,8 @@ pub struct App {
     status: Status,
     deck_cache: Option<crate::decks::Cache>,
     diagnostics: diag_ui::Diagnostics,
+    device_settings: device_settings_ui::Editor,
+    browser_settings: browser_ui::Editor,
     deck_pair: [u8; 2],
     deck_picker: Option<[u8; 2]>,
     deck_focus: Option<u8>,
@@ -198,6 +206,8 @@ impl App {
             loop_error: String::new(),
             beat_jump_beats: saved.beat_jump_beats,
             inspect_quantize: saved.inspect_quantize,
+            hot_cue_colors: saved.hot_cue_colors,
+            cue_defaults: None,
             demo_cues: Default::default(),
             position: 0.0,
             zoom: saved.waveform_zoom,
@@ -209,6 +219,8 @@ impl App {
             status: Status::default(),
             deck_cache: None,
             diagnostics: diag_ui::Diagnostics::default(),
+            device_settings: device_settings_ui::Editor::default(),
+            browser_settings: browser_ui::Editor::default(),
             deck_pair: saved.players.pair,
             deck_picker: None,
             deck_focus: None,
@@ -268,6 +280,8 @@ impl App {
         self.grid_editor = None;
         self.deck_cache = None;
         self.diagnostics = diag_ui::Diagnostics::default();
+        self.device_settings = device_settings_ui::Editor::default();
+        self.browser_settings = browser_ui::Editor::default();
         self.demo_decks.clear();
         self.deck_picker = None;
         self.deck_focus = None;
@@ -435,7 +449,7 @@ impl App {
                 Page::Match => Page::Players,
                 page => page,
             }
-        } else if self.page == Page::Diag {
+        } else if matches!(self.page, Page::Diag | Page::DeviceSettings) {
             Page::Settings
         } else if self.page == Page::Match {
             Page::Players
@@ -495,6 +509,24 @@ impl App {
             self.diagnostics.requests.observe(&event);
             let mut error = None;
             match event {
+                Event::BrowserSettings(token, written, result) => {
+                    if let Err(e) = &result
+                        && e.contains("Library changed")
+                    {
+                        self.reconnect_session(ctx);
+                        break;
+                    }
+                    self.browser_settings_response(token, written, result);
+                }
+                Event::DeviceSettings(token, written, result) => {
+                    if let Err(e) = &result
+                        && e.contains("Library changed")
+                    {
+                        self.reconnect_session(ctx);
+                        break;
+                    }
+                    self.device_settings_response(token, written, result);
+                }
                 Event::Edit(token, result) => {
                     if let Err(e) = &result
                         && e.contains("Library changed")
@@ -622,6 +654,7 @@ impl App {
                                     self.position,
                                     self.preview_duration(track),
                                     &detail.beat_grid,
+                                    self.hot_cue_colors,
                                 ));
                             }
                         }
@@ -771,7 +804,9 @@ impl App {
                             );
                             self.hit("Player count", players.rect);
                         }
-                        if self.page == Page::Collection {
+                        if self.grid_editing() {
+                            self.grid_history_controls(ui);
+                        } else if self.page == Page::Collection {
                             ui.allocate_ui_with_layout(
                                 vec2(ui.available_width(), 48.0),
                                 Layout::left_to_right(Align::Center),
@@ -955,6 +990,7 @@ impl App {
                     Page::Players => self.players(ui),
                     Page::Match => self.match_view(ui),
                     Page::Settings => self.settings(ui, &ctx),
+                    Page::DeviceSettings => self.device_settings_view(ui),
                     Page::Diag => self.diagnostics(ui),
                     Page::Detail => self.detail(ui),
                 }
@@ -973,7 +1009,21 @@ impl App {
         if self.cue_editor.is_some() {
             self.cue_modal(&ctx);
         }
+        let choosing_cue_defaults = self.page == Page::Settings && self.cue_defaults.is_some();
+        if choosing_cue_defaults {
+            self.cue_defaults_modal(&ctx);
+        }
         let grid_open = self.grid_editing();
+        let choosing_device_setting =
+            self.page == Page::DeviceSettings && self.device_settings.picker.is_some();
+        if choosing_device_setting {
+            self.device_setting_picker(&ctx);
+        }
+        let choosing_browser_setting =
+            self.page == Page::DeviceSettings && self.browser_settings.picker;
+        if choosing_browser_setting {
+            self.browser_detail_picker(&ctx);
+        }
         if grid_open {
             self.grid_keyboard(&ctx);
         }
@@ -995,7 +1045,14 @@ impl App {
         if editing {
             self.edit_dialog(&ctx);
         }
-        if !editing && !grid_open && !popup_open && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if !editing
+            && !grid_open
+            && !popup_open
+            && !choosing_device_setting
+            && !choosing_browser_setting
+            && !choosing_cue_defaults
+            && ctx.input(|i| i.key_pressed(Key::Escape))
+        {
             if self.sort_dialog.is_some() {
                 self.sort_dialog = None;
             } else if self.filter_dialog.is_some() {
@@ -1018,7 +1075,7 @@ impl App {
                 self.keyboard = None;
             } else if self.page == Page::Detail {
                 self.leave_inspect();
-            } else if self.page == Page::Diag {
+            } else if matches!(self.page, Page::Diag | Page::DeviceSettings) {
                 self.page = Page::Settings;
             } else if self.page == Page::Match {
                 self.page = Page::Players;
@@ -1036,6 +1093,7 @@ impl App {
         }
         if self.page != Page::Settings {
             self.audio_dialog = false;
+            self.cue_defaults = None;
         }
         if self.page != Page::Players {
             self.deck_picker = None;
@@ -1549,16 +1607,18 @@ impl App {
             if loops.clicked() {
                 self.loop_controls = !self.loop_controls;
             }
-            let grid = ui
-                .add_enabled_ui(
-                    self.detail.is_some() && !self.detail_busy && self.cue_quick.is_none(),
-                    |ui| theme::button(ui, "Edit grid", vec2(110.0, 48.0), false),
-                )
-                .inner;
-            self.hit("Edit grid", grid.rect);
-            if grid.clicked() {
-                self.open_grid_editor();
-            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let grid = ui
+                    .add_enabled_ui(
+                        self.detail.is_some() && !self.detail_busy && self.cue_quick.is_none(),
+                        |ui| theme::button(ui, "Edit grid", vec2(110.0, 48.0), false),
+                    )
+                    .inner;
+                self.hit("Edit grid", grid.rect);
+                if grid.clicked() {
+                    self.open_grid_editor();
+                }
+            });
         });
     }
 
@@ -2107,7 +2167,13 @@ mod tests {
 
     #[test]
     fn cue_editor_touch_save_cancel_label_color_and_delete_survive_reopening() {
-        for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0)] {
+        let click = |app: &mut App, ctx: &Context, size: Vec2, label: &str| {
+            crate::app::tests::click(app, ctx, size, label);
+            // The centered dialog changes size when opening/closing its keyboard.
+            frame(app, ctx, size, vec![]);
+            frame(app, ctx, size, vec![]);
+        };
+        for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0), vec2(1280.0, 800.0)] {
             let ctx = Context::default();
             let mut app = cards_app(
                 &ctx,
@@ -2122,10 +2188,25 @@ mod tests {
             app.inspect(app.tracks[0].clone());
             app.position = 32.18;
             click(&mut app, &ctx, size, "Edit cues");
+            frame(&mut app, &ctx, size, vec![]);
+            frame(&mut app, &ctx, size, vec![]);
+            for id in std::iter::once(0).chain(crate::cues::PALETTE.map(|(id, _)| id)) {
+                let name = format!("Cue color {id}");
+                let rect = app.hits.iter().find(|(n, _)| *n == name).unwrap().1;
+                assert!(
+                    Rect::from_min_size(Pos2::ZERO, size).contains_rect(rect),
+                    "{name} clipped: {rect:?}"
+                );
+                assert!(rect.width() >= 48.0 && rect.height() >= 48.0);
+            }
             assert_eq!(app.cue_editor.as_ref().unwrap().draft.number, 5);
             assert_eq!(app.cue_editor.as_ref().unwrap().draft.time_ms, 32000);
             click(&mut app, &ctx, size, "Cue nudge +");
             assert_eq!(app.cue_editor.as_ref().unwrap().draft.time_ms, 32010);
+            click(&mut app, &ctx, size, "Cue color 49");
+            assert_eq!(app.cue_editor.as_ref().unwrap().draft.color_id, 49);
+            click(&mut app, &ctx, size, "Cue color 0");
+            assert_eq!(app.cue_editor.as_ref().unwrap().draft.color_id, 0);
             click(&mut app, &ctx, size, "Cue color 42");
             click(&mut app, &ctx, size, "Cue label");
             click(&mut app, &ctx, size, "Cue key a");

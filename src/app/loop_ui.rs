@@ -48,6 +48,7 @@ impl App {
             self.position,
             duration,
             &detail.beat_grid,
+            self.hot_cue_colors,
         );
         editor.loop_template = Some(region);
         editor = editor.select(

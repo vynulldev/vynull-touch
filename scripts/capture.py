@@ -20,11 +20,15 @@ def main():
     parser.add_argument('--output-dir', type=Path, help='Screenshot destination (default: a new temporary directory, retained after capture)')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
     parser.add_argument('--grid-editor-only', action='store_true', help='Capture the beat-grid editor using fictional demo tracks')
+    parser.add_argument('--device-settings-only', action='store_true', help='Capture CDJ/mixer settings using a fictional demo profile')
+    parser.add_argument('--browser-settings-only', action='store_true', help='Capture CDJ browser customization using a fictional demo profile')
     parser.add_argument('--audio-settings-only', action='store_true', help='Capture audio output settings and the slimmer Inspect toolbar')
     parser.add_argument('--styles-only', action='store_true', help='Capture the four waveform palettes')
     parser.add_argument('--library-only', action='store_true', help='Capture the library table, sorting, playlists and search')
     parser.add_argument('--search-only', action='store_true', help='Capture live search results above the keyboard')
     parser.add_argument('--cue-markers-only', action='store_true', help='Capture hot cue markers and scrolling waveform smoothing')
+    parser.add_argument('--cue-editor-only', action='store_true', help='Capture the cue editor and its rekordbox color palette')
+    parser.add_argument('--cue-defaults-only', action='store_true', help='Capture per-slot default hot cue colors in Settings')
     parser.add_argument('--inspect-grid-only', action='store_true', help='Capture Inspect grid density at Fit, 8x and 32x zoom')
     parser.add_argument('--waveform-curves-only', action='store_true', help='Capture detailed waveform contours at high zoom in all palettes')
     parser.add_argument('--player-phrases-only', action='store_true', help='Capture player phrase strips and countdowns in Cards, Waveforms and focus')
@@ -59,6 +63,18 @@ def main():
                 from capture_tag_fixture import tag_fixture
                 with tag_fixture(playlist_icons=args.playlist_icons_only) as origin:
                     capture_interactions(env, output_dir, tag_picker_only=args.tag_picker_only, tag_manager_only=args.tag_manager_only, playlist_icons_only=args.playlist_icons_only, server_origin=origin)
+                return
+            if args.browser_settings_only:
+                capture_interactions(env, output_dir, browser_settings_only=True)
+                return
+            if args.cue_editor_only:
+                capture_interactions(env, output_dir, cue_editor_only=True)
+                return
+            if args.cue_defaults_only:
+                capture_interactions(env, output_dir, cue_defaults_only=True)
+                return
+            if args.device_settings_only:
+                capture_interactions(env, output_dir, device_settings_only=True)
                 return
             if args.grid_editor_only:
                 capture_interactions(env, output_dir, grid_editor_only=True)
@@ -121,11 +137,13 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('{"players":{"compare":false}}')
+    if cue_defaults_only:
+        settings.write_text(json.dumps({'hot_cue_colors': [49, 56, 60, 62, 1, 5, 9, 14]}))
     if inspect_waveform:
         style, overview = inspect_waveform
         settings.write_text(json.dumps({'waveform_style': style, 'waveform_overview': overview}))
@@ -201,18 +219,90 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             assert report.startswith('Vynull Touch diagnostic report'), 'System clipboard did not receive the report'
             assert 'Build:' in report and 'SERVER LOG SNAPSHOT' in report
 
+        if cue_defaults_only:
+            click(760, 26)
+            click(380, 153)
+            xtest.XTestFakeMotionEvent(display, 0, 30, 26, 0)
+            xlib.XFlush(display)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'cue-defaults-{width}x{height}.png')], env=env, check=True, timeout=10)
+            return
+
+        if browser_settings_only:
+            click(760, 26)
+            click(195, 153)
+            click(520, 148)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                for name, x in [('categories', 160), ('sorts', 280)]:
+                    click(x, 208)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'browser-{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(520, 208)
+                subprocess.run(['import', '-window', window, str(output_dir / f'browser-detail-picker-{width}x{height}.png')], env=env, check=True, timeout=10)
+                escape()
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(160, 208)
+            click(650, 321)  # Move Album above Artist.
+            click(550, 267)  # Hide Album in the draft.
+            capture('browser-draft')
+            click(520, 208)
+            capture('browser-detail-picker')
+            click(400, 192)  # Artist detail column.
+            click(176, 410)
+            capture('browser-saved')
+            return
+
+        if device_settings_only:
+            click(760, 26)
+            click(195, 153)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                for name, x in [('cdj', 160), ('display', 280), ('mixer', 400)]:
+                    click(x, 148)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'device-settings-{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(650, 205)
+            capture('device-setting-choice')
+            click(400, 214)  # Off stays in the draft until Save.
+            capture('device-settings-draft')
+            click(160, 410)
+            capture('device-settings-saved')
+            click(160, 148)  # CDJ: Auto cue level has a longer option list.
+            click(650, 270)
+            capture('device-setting-long-list')
+            return
+
         if grid_editor_only:
             click(300, 141)
             click(610, 412)
             click(720, 412)
+            click(720, 320)
             for width, height in [(800, 480), (1024, 600), (1280, 800)]:
                 xlib.XResizeWindow(display, int(window, 16), width, height)
                 xlib.XFlush(display)
                 time.sleep(.4)
                 subprocess.run(['import', '-window', window, str(output_dir / f'grid-editor-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(width - 120, 96 if height == 480 else 108)
+                subprocess.run(['import', '-window', window, str(output_dir / f'grid-locked-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(width - 120, 96 if height == 480 else 108)
             xlib.XResizeWindow(display, int(window, 16), 800, 480)
             xlib.XFlush(display)
             time.sleep(.4)
+            click(486, 26)
+            capture('grid-undone')
+            click(582, 26)
+            capture('grid-redone')
             click(225, 378)
             capture('grid-bpm-keypad')
             return
@@ -377,6 +467,19 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
                 xlib.XResizeWindow(display, int(window, 16), 800, 480)
                 xlib.XFlush(display)
                 time.sleep(.3)
+            return
+
+        if cue_editor_only:
+            click(300, 141)
+            click(610, 412)
+            click(228, 305, hold=.9)
+            xtest.XTestFakeMotionEvent(display, 0, 30, 26, 0)
+            xlib.XFlush(display)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'cue-editor-{width}x{height}.png')], env=env, check=True, timeout=10)
             return
 
         if cue_markers_only:

@@ -17,7 +17,9 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+mod browser_settings;
 pub(crate) mod deck_assets;
+mod device_settings;
 mod editing;
 mod grid;
 pub(crate) mod playlist_counts;
@@ -53,6 +55,14 @@ pub fn validate_origin(origin: &str) -> Result<Url, String> {
 }
 
 pub enum Command {
+    BrowserSettings(u64, Option<Box<crate::browser_settings::Edit>>),
+    DeviceSettings(u64, Option<Vec<crate::device_settings::Change>>),
+    GridRestore {
+        track: Box<Track>,
+        token: u64,
+        expected: Box<crate::grid_edit::Snapshot>,
+        target: Box<crate::grid_edit::Snapshot>,
+    },
     Grid {
         track: Box<Track>,
         token: u64,
@@ -83,6 +93,8 @@ pub struct LibrarySnapshot {
 }
 
 pub enum Event {
+    BrowserSettings(u64, bool, Result<crate::browser_settings::Snapshot, String>),
+    DeviceSettings(u64, bool, Result<crate::device_settings::Snapshot, String>),
     Grid(
         u32,
         u64,
@@ -263,6 +275,33 @@ impl Worker {
                 match requests.recv_timeout(Duration::from_millis(100)) {
                     Ok(command) => {
                         let event = match command {
+                            Command::BrowserSettings(token, edit) => Event::BrowserSettings(
+                                token,
+                                edit.is_some(),
+                                match edit {
+                                    Some(edit) => api.save_browser_settings(&edit),
+                                    None => api.browser_settings(),
+                                },
+                            ),
+                            Command::DeviceSettings(token, changes) => Event::DeviceSettings(
+                                token,
+                                changes.is_some(),
+                                match changes {
+                                    Some(changes) => api.save_device_settings(&changes),
+                                    None => api.device_settings(),
+                                },
+                            ),
+                            Command::GridRestore {
+                                track,
+                                token,
+                                expected,
+                                target,
+                            } => Event::Grid(
+                                track.id,
+                                token,
+                                true,
+                                api.restore_grid(&track, &expected, &target),
+                            ),
                             Command::Grid {
                                 track,
                                 token,

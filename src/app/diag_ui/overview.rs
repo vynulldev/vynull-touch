@@ -16,6 +16,8 @@ impl Requests {
                 None
             }
             Event::Library(Err(error))
+            | Event::DeviceSettings(_, _, Err(error))
+            | Event::BrowserSettings(_, _, Err(error))
             | Event::Edit(_, Err(error))
             | Event::Playlist(_, _, Err(error))
             | Event::Detail(_, _, Err(error))

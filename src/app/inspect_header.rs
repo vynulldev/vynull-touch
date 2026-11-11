@@ -151,24 +151,7 @@ impl App {
         self.hit("Inspect key", key);
 
         if editing_grid {
-            let badge = edit_rect.union(playlists_rect);
-            p.rect_filled(badge, 8, SELECTED);
-            let text = badge.shrink2(vec2(10.0, 0.0));
-            theme::text(
-                &p,
-                text.with_max_y(text.top() + 24.0),
-                "EDIT GRID · Free positioning",
-                12.0,
-                ORANGE,
-            );
-            theme::text(
-                &p,
-                text.with_min_y(text.top() + 24.0),
-                "Edits save immediately",
-                12.0,
-                MUTED,
-            );
-            self.hit("Grid mode", badge);
+            self.grid_lock_control(ui, edit_rect.union(playlists_rect));
             return;
         }
         let edit = button(ui, edit_rect, "Edit…").on_hover_text("Edit track");
