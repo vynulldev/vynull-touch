@@ -3,6 +3,7 @@
 """Capture native demo screens. Needs Xvfb, libXtst, xwininfo, xclip and ImageMagick."""
 import ctypes as c
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -25,10 +26,15 @@ def main():
     parser.add_argument('--audio-settings-only', action='store_true', help='Capture audio output settings and the slimmer Inspect toolbar')
     parser.add_argument('--styles-only', action='store_true', help='Capture the four waveform palettes')
     parser.add_argument('--library-only', action='store_true', help='Capture the library table, sorting, playlists and search')
+    parser.add_argument('--library-preview-only', action='store_true', help='Capture Collection and playlist audio preview controls with muted demo audio')
+    parser.add_argument('--library-match-only', action='store_true', help='Capture live key/BPM highlights and their player chooser with demo tracks')
+    parser.add_argument('--on-deck-only', action='store_true', help='Capture playing/cued player badges in Collection, playlists, search and Prepare using demo tracks')
+    parser.add_argument('--key-matching-only', action='store_true', help='Capture saved neighboring-key choices and matching entry points using demo tracks')
     parser.add_argument('--search-only', action='store_true', help='Capture live search results above the keyboard')
     parser.add_argument('--cue-markers-only', action='store_true', help='Capture hot cue markers and scrolling waveform smoothing')
     parser.add_argument('--cue-editor-only', action='store_true', help='Capture the cue editor and its rekordbox color palette')
     parser.add_argument('--cue-defaults-only', action='store_true', help='Capture per-slot default hot cue colors in Settings')
+    parser.add_argument('--prepare-only', action='store_true', help='Capture the shared Prepare playlist workflow using demo tracks')
     parser.add_argument('--inspect-grid-only', action='store_true', help='Capture Inspect grid density at Fit, 8x and 32x zoom')
     parser.add_argument('--waveform-curves-only', action='store_true', help='Capture detailed waveform contours at high zoom in all palettes')
     parser.add_argument('--player-phrases-only', action='store_true', help='Capture player phrase strips and countdowns in Cards, Waveforms and focus')
@@ -73,6 +79,9 @@ def main():
             if args.cue_defaults_only:
                 capture_interactions(env, output_dir, cue_defaults_only=True)
                 return
+            if args.prepare_only:
+                capture_interactions(env, output_dir, prepare_only=True)
+                return
             if args.device_settings_only:
                 capture_interactions(env, output_dir, device_settings_only=True)
                 return
@@ -110,6 +119,19 @@ def main():
                     subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'collection', '--size', size, '--screenshot', str(output_dir / f'collection-{size}.png')], env=env, check=True, timeout=30)
                 capture_interactions(env, output_dir, library_only=True)
                 return
+            if args.library_preview_only:
+                with preview_output(env) as audio_env:
+                    capture_interactions(audio_env, output_dir, library_preview_only=True)
+                return
+            if args.library_match_only:
+                capture_interactions(env, output_dir, library_match_only=True)
+                return
+            if args.on_deck_only:
+                capture_interactions(env, output_dir, on_deck_only=True)
+                return
+            if args.key_matching_only:
+                capture_interactions(env, output_dir, key_matching_only=True)
+                return
             if args.inspect_waveforms:
                 for choice in [('rgb', 'half'), ('rgb', 'full'), ('blue', 'half'), ('blue', 'full'), ('3band', 'full'), ('auto', 'full')]:
                     capture_interactions(env, output_dir, inspect_waveform=choice)
@@ -129,6 +151,46 @@ def main():
             server.wait(timeout=5)
 
 
+@contextmanager
+def preview_output(env):
+    """Private PulseAudio server with a silent sink; never changes user audio."""
+    with tempfile.TemporaryDirectory(prefix='vynull-preview-audio-') as directory:
+        root = Path(directory)
+        audio_env = dict(env)
+        for name in ['runtime', 'state', 'config']:
+            (root / name).mkdir(mode=0o700)
+            audio_env[f'PULSE_{name.upper()}_PATH'] = str(root / name)
+        audio_env['PULSE_SERVER'] = f'unix:{root}/native'
+        audio_env['PULSE_COOKIE'] = str(root / 'cookie')
+        audio_env['DBUS_SESSION_BUS_ADDRESS'] = f'unix:path={root}/no-session-bus'
+        (root / 'cookie').write_bytes(os.urandom(256))
+        config = root / 'pulse.pa'
+        config.write_text(
+            f'load-module module-native-protocol-unix socket={root}/native auth-cookie={root}/cookie\n'
+            'load-module module-null-sink sink_name=vynull_preview rate=48000 channels=2 sink_properties=device.description=Preview_Test_Output\n'
+            'set-default-sink vynull_preview\n'
+        )
+        with (root / 'pulse.log').open('w+') as log:
+            audio = subprocess.Popen(['pulseaudio', '-n', '--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1', '--disable-shm=yes', '--log-target=stderr', f'--file={config}'], env=audio_env, stdout=log, stderr=subprocess.STDOUT)
+            try:
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline and audio.poll() is None:
+                    ready = subprocess.run(['pactl', 'info'], env=audio_env, capture_output=True, timeout=3)
+                    if ready.returncode == 0:
+                        yield audio_env
+                        return
+                    time.sleep(.1)
+                log.seek(0)
+                raise RuntimeError(f'Private audio output failed to start: {log.read()}')
+            finally:
+                audio.terminate()
+                try:
+                    audio.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    audio.kill()
+                    audio.wait(timeout=5)
+
+
 def capture_styles(env, output_dir):
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -137,11 +199,13 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('{"players":{"compare":false}}')
+    if library_preview_only:
+        settings.write_text(json.dumps({'players': {'compare': False}, 'audio_volume': 0.0}))
     if cue_defaults_only:
         settings.write_text(json.dumps({'hot_cue_colors': [49, 56, 60, 62, 1, 5, 9, 14]}))
     if inspect_waveform:
@@ -218,6 +282,138 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             report = subprocess.check_output(['xclip', '-o', '-selection', 'clipboard'], env=env, text=True, timeout=5)
             assert report.startswith('Vynull Touch diagnostic report'), 'System clipboard did not receive the report'
             assert 'Build:' in report and 'SERVER LOG SNAPSHOT' in report
+
+        if key_matching_only:
+            click(760, 26)
+            capture('key-matching-settings')
+            click(550, 153)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'key-matching-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            # Toggle relative and previous neighbors; verify the saved choice below.
+            click(230, 149)
+            click(230, 261)
+            chosen = json.loads(settings.read_text()).get('key_matching')
+            assert chosen == {'relative': False, 'next': True, 'previous': False}, chosen
+            capture('key-matching-custom')
+            escape()
+            click(44, 174)
+            click(330, 26)
+            capture('key-matching-library-chooser')
+            escape()
+            click(44, 94)
+            click(480, 26)
+            capture('key-matching-player-results')
+            return
+
+        if on_deck_only:
+            click(44, 174)
+            click(300, 142)
+            click(720, 430)  # Load the same demo track onto Player 2, leaving it cued.
+            click(400, 278)
+            for page in ['collection', 'playlist', 'prepare']:
+                if page == 'playlist':
+                    click(44, 250)
+                    click(240, 100)
+                elif page == 'prepare':
+                    click(44, 322)
+                    click(608, 92)
+                    click(300, 216)  # Use the existing Warm-up selections playlist.
+                for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                    xlib.XResizeWindow(display, int(window, 16), width, height)
+                    xlib.XFlush(display)
+                    time.sleep(.4)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'{page}-on-deck-{width}x{height}.png')], env=env, check=True, timeout=10)
+                xlib.XResizeWindow(display, int(window, 16), 800, 480)
+                xlib.XFlush(display)
+                time.sleep(.4)
+            click(44, 174)
+            click(200, 26)
+            capture('search-on-deck')
+            return
+
+        if library_match_only:
+            click(44, 174)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'collection-matches-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(334, 26)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'library-match-picker-{width}x{height}.png')], env=env, check=True, timeout=10)
+            escape()
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(44, 250)
+            click(240, 100)
+            click(300, 142)
+            capture('playlist-matches')
+            return
+
+        if library_preview_only:
+            for playlist in [False, True]:
+                xlib.XResizeWindow(display, int(window, 16), 800, 480)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                if playlist:
+                    click(44, 250)
+                    click(240, 100)
+                else:
+                    click(44, 174)
+                click(300, 142)
+                click(506, 430)
+                time.sleep(.7)
+                streams = subprocess.check_output(['pactl', 'list', 'short', 'sink-inputs'], env=env, text=True, timeout=5)
+                assert streams.strip(), 'Preview did not open the private audio output'
+                name = 'playlist' if playlist else 'collection'
+                for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                    xlib.XResizeWindow(display, int(window, 16), width, height)
+                    xlib.XFlush(display)
+                    time.sleep(.4)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'{name}-preview-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(986, 750)
+                subprocess.run(['import', '-window', window, str(output_dir / f'{name}-preview-paused-1280x800.png')], env=env, check=True, timeout=10)
+            return
+
+        if prepare_only:
+            click(44, 322)
+            capture('prepare-unconfigured')
+            click(608, 92)
+            capture('prepare-picker')
+            click(300, 216)  # Use the existing Warm-up selections demo playlist.
+            click(300, 150)
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'prepare-list-{width}x{height}.png')], env=env, check=True, timeout=10)
+            xlib.XResizeWindow(display, int(window, 16), 800, 480)
+            xlib.XFlush(display)
+            time.sleep(.4)
+            click(440, 430)  # Inspect the selected Prepare track.
+            capture('prepare-inspect')
+            escape()
+            click(44, 174)
+            click(300, 142)
+            capture('prepare-collection')
+            click(44, 94)
+            click(480, 26)  # Match a player.
+            click(300, 316)
+            capture('prepare-match')
+            return
 
         if cue_defaults_only:
             click(760, 26)

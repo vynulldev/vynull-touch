@@ -98,7 +98,7 @@ impl App {
                     self.matching.dirty = true;
                 }
             }
-            let keys = theme::button(ui, "Compatible keys", vec2(180.0, 48.0), self.matching.keys);
+            let keys = theme::button(ui, "Compatible keys", vec2(160.0, 48.0), self.matching.keys);
             self.hit("Match keys", keys.rect);
             if keys.clicked() {
                 self.matching.keys = !self.matching.keys;
@@ -115,12 +115,19 @@ impl App {
                 self.matching.half_double = !self.matching.half_double;
                 self.matching.dirty = true;
             }
+            self.key_matching_button(ui, "Key rules…", 104.0);
         });
         self.matching.update(&self.all_tracks);
         ui.horizontal(|ui| {
-            ui.label(format!("{} matches", self.matching.results.len()));
+            ui.add_sized(
+                vec2(84.0, 48.0),
+                Label::new(format!("{} matches", self.matching.results.len())).truncate(),
+            );
             let selected = self.selected_track().cloned();
             ui.add_enabled_ui(selected.is_some(), |ui| {
+                if let Some(track) = &selected {
+                    self.prepare_button(ui, track);
+                }
                 let inspect = theme::button(ui, "Inspect", vec2(96.0, 48.0), false);
                 self.hit("Match inspect", inspect.rect);
                 if inspect.clicked()
@@ -167,8 +174,17 @@ impl App {
                         continue;
                     };
                     let label = format!(
-                        "{} · {}\n{} · {:.1} BPM · {}",
-                        track.title, track.artist, item.reason, track.bpm, track.key
+                        "{} · {}{}\n{} · {:.1} BPM · {}",
+                        track.title,
+                        track.artist,
+                        if self.prepared(track) {
+                            " · Prepared"
+                        } else {
+                            ""
+                        },
+                        item.reason,
+                        track.bpm,
+                        track.key
                     );
                     let response = theme::button(
                         ui,

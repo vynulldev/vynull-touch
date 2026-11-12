@@ -5,6 +5,12 @@ use std::collections::BTreeMap;
 
 #[cfg(test)]
 mod cue_tests;
+#[cfg(test)]
+mod match_tests;
+mod match_ui;
+#[cfg(test)]
+mod preview_tests;
+mod preview_ui;
 mod table;
 
 const TABS: [&str; 6] = ["BPM", "Key", "Genre", "Rating", "Color", "Tags"];
@@ -98,7 +104,7 @@ impl App {
     pub(super) fn collection_toolbar(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let clear_width = if self.query.is_empty() { 0.0 } else { 56.0 };
-            let search_width = (ui.available_width() - clear_width - 240.0).max(100.0);
+            let search_width = (ui.available_width() - clear_width - 360.0).max(64.0);
             let search = ui.add_sized(
                 vec2(search_width, 48.0),
                 TextEdit::singleline(&mut self.query)
@@ -122,6 +128,7 @@ impl App {
                     self.filter();
                 }
             }
+            self.library_match_button(ui);
             let active = self.filters.count();
             let label = if active == 0 {
                 "Filters".into()

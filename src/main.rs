@@ -17,6 +17,7 @@ mod loops;
 mod matching;
 mod model;
 mod phrases;
+mod prepare;
 mod preview;
 mod settings;
 mod theme;

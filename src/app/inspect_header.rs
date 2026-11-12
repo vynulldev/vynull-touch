@@ -63,8 +63,15 @@ impl App {
             vec2(108.0, 48.0),
         );
         let edit_rect = Rect::from_min_size(playlists_rect.min - vec2(88.0, 0.0), vec2(80.0, 48.0));
+        let prepare_rect = Rect::from_min_size(edit_rect.min - vec2(56.0, 0.0), vec2(48.0, 48.0));
         let text_left = cover.right() + 12.0;
-        let text_width = (edit_rect.left() - 12.0 - text_left).max(1.0);
+        let text_width = ((if editing_grid {
+            edit_rect.left()
+        } else {
+            prepare_rect.left()
+        }) - 12.0
+            - text_left)
+            .max(1.0);
         let line = |y, height| {
             Rect::from_min_size(pos2(text_left, header.top() + y), vec2(text_width, height))
         };
@@ -154,6 +161,7 @@ impl App {
             self.grid_lock_control(ui, edit_rect.union(playlists_rect));
             return;
         }
+        self.prepare_icon(ui, prepare_rect, track);
         let edit = button(ui, edit_rect, "Edit…").on_hover_text("Edit track");
         self.hit("Edit track", edit.rect);
         if edit.clicked() {

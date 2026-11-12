@@ -1,6 +1,6 @@
 # Vynull Touch Roadmap
 
-Updated November 11, 2026
+Updated November 12, 2026
 
 Vynull Touch is a touchscreen companion for Vynull: browse the library, prepare
 tracks, and monitor and load the decks. It is built for 800×480 first; larger
@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 242 tests (the opt-in
+Everything below is built. The latest build passed 268 tests (the opt-in
 hardware-audio test skipped). What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -18,6 +18,11 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
 - Collection and playlist tables with artwork and waveform previews, search with
   a touch keyboard, filters, and ascending, descending or original sorting on
   any column.
+- Live Key/BPM highlighting against the master deck, a chosen player or none,
+  using saved key-match rules (relative A/B, +1 and −1).
+- P1–P4 badges on tracks loaded on players, and Preview/Pause from the lists.
+- Prepare: a shortlist kept in a shared Vynull playlist, with quick adds,
+  reordering, removal and loading.
 - Match a player: tracks that fit a deck's pitched tempo and key.
 - Rating, color and tag edits; playlist, folder, tag and category management.
 
@@ -53,9 +58,11 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 ## Next steps
 
 1. Walk through the features on the physical touchscreen: navigation
-   and Back, the editors, the settings pages and grid editing with Undo/Redo.
-2. Check them against live CDJs: playhead smoothness, countdowns, the CDJ menu
-   after browser changes, and hardware settings writes.
+   and Back, Prepare with two clients, the editors, the settings pages and grid
+   editing with Undo/Redo.
+2. Check them against live CDJs: playhead smoothness, countdowns, badges, match
+   highlighting, the CDJ menu after browser changes, and hardware settings
+   writes.
 3. Measure performance on the Pi and set budgets from it.
 4. Add recently played history, and document the desktop shortcut and
    autostart setup.
@@ -67,7 +74,7 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 | Now | 1 Everyday use | Built; touchscreen walkthrough pending |
 | Now | 2 Repeatable releases | Done except the shortcut and autostart docs |
 | Next | 3 Player monitoring and diagnostics | Layouts done; timing states, log search and performance pending |
-| Next | 4 Finding the next track | Sorting, filters and Match done; shortlist, history and browsing-state polish pending |
+| Next | 4 Finding the next track | Done except history and browsing-state polish |
 | Later | 5 Track preparation | Editors done; readback and refresh polish pending |
 
 Items are checked when built. A milestone is done when its
@@ -125,9 +132,8 @@ timing, with four physical players tested apart from simulated ones.
 - [x] Sorting and filters (BPM, key, genre, rating, color, tags), remembered
   across restarts.
 - [x] Library table with waveform previews beside the artwork.
-- [ ] A shortlist with touch-friendly add, remove and reorder; loading stays
-  explicit.
-- [x] Match a player by its pitched tempo and key.
+- [x] Prepare shortlist.
+- [x] Match a player, live Key/BPM highlighting and key-match rules.
 - [ ] Recently played history, linking to Inspect for tracks still in the
   library.
 - [ ] Keep browsing state between playlists and Players, and show clear empty,
@@ -154,8 +160,8 @@ persistence failures, and no edit or preview ever moves a deck.
 
 - Tracks and cues have revision endpoints; playlists don't, so the app polls the
   playlist tree and the open playlist.
-- A shortlist needs a decision first: kept on this device, or shared as a
-  regular Vynull playlist.
+- Prepare is a shared playlist. Vynull has no atomic playlist compare-and-swap,
+  so a change between the app's check and its write can't be ruled out.
 - Grid Undo/Redo uses `POST /api/analysis/beatgrid/restore` (Vynull #183).
   Vynull still has no atomic multi-step grid writes or persistence receipts.
 - Browser and hardware settings write through `/api/menu-items` and

@@ -45,12 +45,21 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 
 - **Collection and playlists:** a table with artwork, waveform previews with hot
   cue markers, and Track, Artist, BPM, Key and Time columns. Drag to scroll, tap to
-  select, then **Inspect** or **Load to…**. Smart playlists and
+  select, then **Preview**, **Inspect** or **Load to…**. Smart playlists and
   folders have their own icons.
 - **Search** with a built-in keyboard; results update as you type
   ([800×480](docs/keyboard-800x480.png), [1280×800](docs/search-results-1280x800.png)).
 - **Sort** by any column (tap a heading) or from the menu, and **filter** by BPM
   range, key, genre, rating, color and tags. Sorting is remembered across restarts.
+- **Match highlighting:** Key and BPM cells turn green when they fit the master
+  deck or a player you choose in the toolbar's **Match** button. **Key rules…**
+  sets which Camelot neighbours count (relative A/B, +1, −1); the BPM range is ±6%
+  by default, with ±3%, ±10% and half/double time.
+- **On-deck badges:** P1–P4 under a track's title when it's loaded on a player:
+  green while playing, orange outlines when cued or paused.
+- **Prepare:** a shortlist kept in a shared Vynull playlist. Add tracks from
+  Collection, Inspect (the bookmark button) or Match; reorder, remove, inspect or
+  load them from the Prepare tab.
 - **Match a player:** find tracks that fit a deck's pitched tempo and key, then
   inspect, add to a playlist or load them.
 - **Editing:** rating, color and tags per track (**Edit track…**); tag, category,
@@ -93,6 +102,7 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - Server, startup tab, waveform style (Auto, RGB, 3-band, Blue) and full-track
   shape, preview audio output and volume.
 - **Cue colors…:** a default color for each hot cue pad A–H.
+- **Key matching…:** the Camelot neighbour rules.
 - **CDJ & mixer…:** Vynull's shared CDJ, display and mixer settings (46 fields),
   and the CDJ menu's categories, sort options and detail column.
 - **Diagnostics:** status, versions, request errors, the Vynull log, and a report
@@ -186,10 +196,11 @@ VYNULL_AUDIO_TEST_ORIGIN=http://127.0.0.1:9443 VYNULL_AUDIO_TEST_TRACK=123 \
 ```
 
 `python3 scripts/capture.py` captures native screenshots of the demo on a private
-Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and ImageMagick), and
-`--help` lists a capture for each feature. Screenshots go to a new temporary
-folder unless you pass `--output-dir`; the script never touches real players or
-a real library. Only the images linked here belong in `docs/`.
+Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and ImageMagick; the audio
+captures also need PulseAudio), and `--help` lists a capture for each feature.
+Screenshots go to a new temporary folder unless you pass `--output-dir`; the
+script never touches real players or a real library. Only the images linked here
+belong in `docs/`.
 
 Library requests, player status, artwork, deck analysis, preview audio and logs
 each run on their own bounded worker, so a slow request never stalls the deck

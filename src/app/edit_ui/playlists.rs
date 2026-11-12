@@ -2,7 +2,7 @@
 use super::*;
 
 impl App {
-    pub(super) fn apply_edited_playlists(&mut self, playlists: &[Playlist]) {
+    pub(in crate::app) fn apply_edited_playlists(&mut self, playlists: &[Playlist]) {
         self.playlists = playlists.to_vec();
         if self.folder != 0 && !playlists.iter().any(|p| p.id == self.folder && p.is_folder) {
             self.folder = 0;

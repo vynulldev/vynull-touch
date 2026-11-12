@@ -62,13 +62,18 @@ impl App {
             i.pointer.any_down()
                 || i.pointer.any_released()
                 || i.smooth_scroll_delta() != Vec2::ZERO
-        }) || (self.page == Page::Collection
-            && self
-                .library_scroll
-                .is_some_and(|id| track_scroll::moving(ctx, id)))
+        }) || (self.page == Page::Prepare && track_scroll::moving(ctx, self.prepare_scroll_id()))
+            || self.prepare.pending.is_some()
+            || self.prepare.picker
+            || (self.page == Page::Collection
+                && self
+                    .library_scroll
+                    .is_some_and(|id| track_scroll::moving(ctx, id)))
             || self.keyboard.is_some()
             || self.filter_dialog.is_some()
             || self.sort_dialog.is_some()
+            || self.library_match_picker
+            || self.key_matching_picker.is_some()
             || self.cue_editor.is_some()
             || self.cue_quick.is_some()
             || self.cue_press.is_some()

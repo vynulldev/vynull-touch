@@ -36,6 +36,8 @@ impl Columns {
 impl App {
     pub(in crate::app) fn library_table(&mut self, ui: &mut Ui, height: f32) -> Option<Track> {
         let mut inspect = None;
+        let reference = self.library_match_player().cloned();
+        let on_deck = self.on_deck_snapshot();
         let searching = self.keyboard == Some(Field::Search);
         // Keep at least two full touch rows above the keyboard at 800×480.
         // Larger screens retain the sortable header while searching.
@@ -160,6 +162,23 @@ impl App {
                         } else {
                             theme::sleeve(ui.painter(), cover, track.id);
                         }
+                        if self.prepared(&track) {
+                            let badge = Rect::from_min_size(
+                                cover.right_top() - vec2(18.0, 0.0),
+                                vec2(18.0, 18.0),
+                            );
+                            ui.painter().rect_filled(badge, 3, GREEN);
+                            let center = badge.center();
+                            ui.painter().line_segment(
+                                [center + vec2(-5.0, 0.0), center + vec2(-1.0, 4.0)],
+                                Stroke::new(2.0, BG),
+                            );
+                            ui.painter().line_segment(
+                                [center + vec2(-1.0, 4.0), center + vec2(5.0, -4.0)],
+                                Stroke::new(2.0, BG),
+                            );
+                            self.hit(&format!("Prepared track {}", track.id), badge);
+                        }
                         ui.painter().rect_filled(wave, 0, Color32::BLACK);
                         let texture = if visible {
                             self.artwork.as_mut().and_then(|cache| {
@@ -198,6 +217,19 @@ impl App {
                             cues,
                             waveform::markers::Edge::Top,
                         );
+                        if self.library_preview.as_ref().is_some_and(|playing| {
+                            playing.id == track.id && playing.file_path == track.file_path
+                        }) {
+                            let duration = self.preview_duration(&track);
+                            if duration > 0.0 {
+                                let x = wave.left()
+                                    + wave.width()
+                                        * (self.position / duration).clamp(0.0, 1.0) as f32;
+                                ui.painter()
+                                    .vline(x, wave.y_range(), Stroke::new(2.0, ORANGE));
+                            }
+                        }
+                        let loaded = on_deck.contains(&track);
                         for (i, value) in [
                             track.title.clone(),
                             track.artist.clone(),
@@ -228,16 +260,61 @@ impl App {
                             } else {
                                 15.0
                             };
+                            let compatible = !track.file_missing
+                                && reference.as_ref().is_some_and(|player| match i {
+                                    2 => crate::matching::tempo(player).is_some_and(|tempo| {
+                                        crate::matching::tempo_match(
+                                            tempo,
+                                            track.bpm,
+                                            self.matching.tolerance,
+                                            self.matching.half_double,
+                                        )
+                                        .is_some()
+                                    }),
+                                    3 => self
+                                        .matching
+                                        .key_rules
+                                        .relation(&player.key, &track.key)
+                                        .is_some(),
+                                    _ => false,
+                                });
+                            if compatible {
+                                let badge = cells[i + 1].shrink2(vec2(3.0, 7.0));
+                                ui.painter()
+                                    .rect_filled(badge, 4, Color32::from_rgb(31, 69, 48));
+                                self.hit(
+                                    &format!(
+                                        "{} match {}",
+                                        if i == 2 { "BPM" } else { "Key" },
+                                        track.id
+                                    ),
+                                    badge,
+                                );
+                            }
                             let color = if track.file_missing {
                                 MUTED
-                            } else if i == 3 {
+                            } else if compatible {
                                 GREEN
                             } else if i == 4 {
                                 MUTED
                             } else {
                                 TEXT
                             };
-                            if i == 0 && track.file_missing {
+                            if i == 0 && loaded {
+                                theme::text(
+                                    ui.painter(),
+                                    cell.with_max_y(cell.top() + 28.0),
+                                    value,
+                                    size,
+                                    color,
+                                );
+                                self.paint_on_deck(
+                                    ui,
+                                    cell.with_min_y(cell.top() + 28.0),
+                                    &track,
+                                    &on_deck,
+                                );
+                            } else if track.file_missing && (i == 0 || (i == 1 && loaded)) {
                                 theme::text(
                                     ui.painter(),
                                     Rect::from_min_max(
@@ -258,6 +335,8 @@ impl App {
                                     10.0,
                                     ORANGE,
                                 );
+                            } else if matches!(i, 2..=4) {
+                                theme::bold_text(ui.painter(), cell, value, size, color);
                             } else {
                                 theme::text(ui.painter(), cell, value, size, color);
                             }

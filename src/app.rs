@@ -25,15 +25,18 @@ mod edit_ui;
 mod grid_ui;
 mod inspect_cursor;
 mod inspect_header;
+mod key_matching_ui;
 mod library_ui;
 mod load_ui;
 mod loop_ui;
 mod match_ui;
 #[cfg(test)]
 mod navigation_tests;
+mod on_deck;
 #[cfg(test)]
 mod phrase_tests;
 mod player_ui;
+mod prepare_ui;
 mod refresh;
 mod track_scroll;
 
@@ -43,6 +46,7 @@ enum Page {
     Playlists,
     Players,
     Match,
+    Prepare,
     Settings,
     DeviceSettings,
     Diag,
@@ -63,6 +67,7 @@ pub struct App {
     refresh: refresh::State,
     library_scroll: Option<Id>,
     preview: Controller,
+    library_preview: Option<Track>,
     audio_dialog: bool,
     audio_devices: Vec<preview::OutputDevice>,
     audio_scan: Option<std::sync::mpsc::Receiver<Result<Vec<preview::OutputDevice>, String>>>,
@@ -77,6 +82,10 @@ pub struct App {
     edit_serial: u64,
     demo_edits: crate::editing::Demo,
     matching: crate::matching::State,
+    key_matching_picker: Option<key_matching_ui::Picker>,
+    library_match: crate::matching::live::Reference,
+    library_match_picker: bool,
+    prepare: prepare_ui::State,
     folder: u32,
     source: Option<u32>,
     source_name: String,
@@ -170,6 +179,7 @@ impl App {
             refresh: refresh::State::default(),
             library_scroll: None,
             preview,
+            library_preview: None,
             audio_dialog: false,
             audio_devices: vec![],
             audio_scan: None,
@@ -183,7 +193,14 @@ impl App {
             editor: None,
             edit_serial: 0,
             demo_edits: Default::default(),
-            matching: Default::default(),
+            matching: crate::matching::State {
+                key_rules: saved.key_matching,
+                ..Default::default()
+            },
+            key_matching_picker: None,
+            library_match: Default::default(),
+            library_match_picker: false,
+            prepare: prepare_ui::State::new(saved.prepare_playlist),
             folder: 0,
             source: None,
             source_name: "All tracks".into(),
@@ -288,6 +305,7 @@ impl App {
         self.deck_clocks.clear();
         self.demo_started = Instant::now();
         self.preview.stop();
+        self.library_preview = None;
         self.library_session = None;
         self.audio_dialog = false;
         self.worker = None;
@@ -306,7 +324,14 @@ impl App {
         self.playlist_counts = Default::default();
         self.editor = None;
         self.demo_edits = Default::default();
-        self.matching = Default::default();
+        self.matching = crate::matching::State {
+            key_rules: self.matching.key_rules,
+            ..Default::default()
+        };
+        self.key_matching_picker = None;
+        self.library_match = Default::default();
+        self.library_match_picker = false;
+        self.prepare.reset();
         self.status = Status::default();
         self.last_status = None;
         self.linked = false;
@@ -387,7 +412,9 @@ impl App {
                 .is_some_and(|time| time.elapsed() < Duration::from_secs(4))
     }
     fn selected_track(&self) -> Option<&Track> {
-        if self.page == Page::Match {
+        if self.page == Page::Prepare {
+            self.prepare_selected_track()
+        } else if self.page == Page::Match {
             let id = self.matching.selected?;
             let item = self.matching.results.iter().find(|m| m.id == id)?;
             self.all_tracks
@@ -401,6 +428,7 @@ impl App {
         }
     }
     fn inspect(&mut self, track: Track) {
+        self.stop_library_preview();
         self.grid_editor = None;
         if self.page != Page::Detail {
             // Browsing and player-view state stays in place while inspecting.
@@ -459,6 +487,7 @@ impl App {
     }
 
     fn source(&mut self, playlist: Option<Playlist>) {
+        self.stop_library_preview();
         self.token += 1;
         self.source = playlist.as_ref().map(|p| p.id);
         self.source_name = playlist
@@ -534,7 +563,16 @@ impl App {
                         self.reconnect_session(ctx);
                         break;
                     }
-                    self.edit_response(token, result);
+                    if self
+                        .prepare
+                        .pending
+                        .as_ref()
+                        .is_some_and(|pending| pending.token == token)
+                    {
+                        self.prepare_response(result);
+                    } else {
+                        self.edit_response(token, result);
+                    }
                 }
                 Event::Connection(state) => self.connection = state,
                 Event::Library(result) => {
@@ -846,6 +884,7 @@ impl App {
                         (Page::Players, "Players", 2),
                         (Page::Collection, "Collection", 0),
                         (Page::Playlists, "Playlists", 1),
+                        (Page::Prepare, "Prepare", 5),
                     ]
                     .iter()
                     {
@@ -884,6 +923,7 @@ impl App {
         let ctx = root.ctx().clone();
         let popup_open = Popup::is_any_open(&ctx);
         self.poll(&ctx);
+        self.sync_library_preview();
         if self.page != Page::Diag {
             self.diagnostics
                 .logs
@@ -951,6 +991,8 @@ impl App {
                     self.loop_error.clone()
                 } else if self.page == Page::Detail && self.cue_quick.is_some() {
                     "Saving and verifying hot cue…".to_owned()
+                } else if let Some(message) = self.library_preview_status() {
+                    message
                 } else if self.page == Page::Detail {
                     match self.preview.state.phase {
                         Phase::Loading => "Preparing audio… Tap Pause to cancel".to_owned(),
@@ -989,6 +1031,7 @@ impl App {
                     Page::Playlists => self.playlists(ui),
                     Page::Players => self.players(ui),
                     Page::Match => self.match_view(ui),
+                    Page::Prepare => self.prepare_view(ui),
                     Page::Settings => self.settings(ui, &ctx),
                     Page::DeviceSettings => self.device_settings_view(ui),
                     Page::Diag => self.diagnostics(ui),
@@ -1030,7 +1073,11 @@ impl App {
         if self.deck_picker.is_some() && self.page == Page::Players {
             self.player_pair_modal(&ctx);
         }
+        let choosing_library_match = self.page == Page::Collection && self.library_match_picker;
         if self.page == Page::Collection {
+            if choosing_library_match {
+                self.library_match_modal(&ctx);
+            }
             if self.sort_dialog.is_some() {
                 self.sort_modal(&ctx);
             }
@@ -1040,12 +1087,24 @@ impl App {
         } else {
             self.sort_dialog = None;
             self.filter_dialog = None;
+            self.library_match_picker = false;
+        }
+        let choosing_key_matching = self.key_matching_picker.is_some();
+        if choosing_key_matching {
+            self.key_matching_modal(&ctx);
         }
         let editing = self.editor.is_some();
         if editing {
             self.edit_dialog(&ctx);
         }
+        let choosing_prepare = self.prepare.picker;
+        if choosing_prepare {
+            self.prepare_picker(&ctx);
+        }
         if !editing
+            && !choosing_library_match
+            && !choosing_key_matching
+            && !choosing_prepare
             && !grid_open
             && !popup_open
             && !choosing_device_setting
@@ -1085,15 +1144,21 @@ impl App {
                 ctx.send_viewport_cmd(ViewportCommand::Fullscreen(false));
             }
         }
+        self.sync_library_preview();
         if self.page != Page::Detail {
             self.finish_grid_editing();
             self.inspect_origin = None;
-            self.preview.stop();
+            if self.library_preview.is_none() {
+                self.preview.stop();
+            }
             self.cue_press = None;
         }
         if self.page != Page::Settings {
             self.audio_dialog = false;
             self.cue_defaults = None;
+        }
+        if !matches!(self.page, Page::Settings | Page::Collection | Page::Match) {
+            self.key_matching_picker = None;
         }
         if self.page != Page::Players {
             self.deck_picker = None;
@@ -1133,7 +1198,7 @@ impl App {
             }
             let selected = self.selected_track().cloned();
             let title_width =
-                (ui.available_width() - if selected.is_some() { 286.0 } else { 0.0 }).max(30.0);
+                (ui.available_width() - if selected.is_some() { 510.0 } else { 0.0 }).max(30.0);
             let count = if self.filters.count() > 0 || !self.query.trim().is_empty() {
                 format!("{} / {} tracks", self.visible.len(), self.tracks.len())
             } else {
@@ -1151,32 +1216,34 @@ impl App {
                 ui.painter(),
                 Rect::from_min_max(rect.left_top() + vec2(0.0, 20.0), rect.max),
                 selected.as_ref().map_or_else(
-                    || "Select a track to inspect or load to a player".into(),
+                    || "Select a track to preview, inspect or load to a player".into(),
                     |track| format!("{} · {}", track.title, track.artist),
                 ),
                 15.0,
                 if selected.is_some() { TEXT } else { MUTED },
             );
             if let Some(track) = selected {
+                self.prepare_button(ui, &track);
                 let add = theme::button(ui, "+", vec2(48.0, 48.0), false)
                     .on_hover_text("Add to playlist");
                 self.hit("Add to playlist", add.rect);
                 if add.clicked() {
                     self.open_playlist_manager(Some(track.clone()));
                 }
+                self.library_preview_button(ui, &track);
                 let response = theme::button(ui, "Inspect", vec2(96.0, 48.0), false);
                 self.hit("Inspect", response.rect);
                 if response.clicked() {
                     inspect = Some(track);
                 }
                 let enabled = self.fresh() && !self.load_busy && self.pending_load.is_none();
-                if ui
+                let load = ui
                     .add_enabled_ui(enabled, |ui| {
                         theme::primary(ui, "Load to…", vec2(116.0, 48.0))
                     })
-                    .inner
-                    .clicked()
-                {
+                    .inner;
+                self.hit("Library load", load.rect);
+                if load.clicked() {
                     self.load_dialog = true;
                 }
             }
@@ -2420,6 +2487,7 @@ mod tests {
             for label in [
                 "Search",
                 "Clear search",
+                "Library match",
                 "Library filters",
                 "Library sort",
                 "Player count",

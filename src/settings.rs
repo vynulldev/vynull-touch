@@ -24,6 +24,8 @@ pub struct Settings {
     pub audio_volume: f32,
     pub players: Players,
     pub library_order: crate::library::Order,
+    pub key_matching: crate::matching::KeyRules,
+    pub prepare_playlist: Option<crate::prepare::Binding>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
@@ -83,6 +85,8 @@ impl Default for Settings {
             audio_volume: 0.5,
             players: Players::default(),
             library_order: Default::default(),
+            key_matching: Default::default(),
+            prepare_playlist: None,
         }
     }
 }
@@ -259,6 +263,18 @@ pub fn save_order(path: &Path, order: crate::library::Order) -> io::Result<()> {
     save(path, &settings)
 }
 
+pub fn save_key_matching(path: &Path, rules: crate::matching::KeyRules) -> io::Result<()> {
+    let mut settings = load(Some(path));
+    settings.key_matching = rules;
+    save(path, &settings)
+}
+
+pub fn save_prepare_playlist(path: &Path, binding: &crate::prepare::Binding) -> io::Result<()> {
+    let mut settings = load(Some(path));
+    settings.prepare_playlist = Some(binding.clone());
+    save(path, &settings)
+}
+
 pub fn save_server(path: &Path, server: &str) -> io::Result<()> {
     crate::api::validate_origin(server)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
@@ -291,6 +307,52 @@ fn save(path: &Path, settings: &Settings) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_matching_defaults_and_choices_survive_other_settings_saves() {
+        use crate::matching::KeyRules;
+        let root = std::env::temp_dir().join(format!(
+            "vynull-key-matching-settings-{}",
+            std::process::id()
+        ));
+        let path = root.join("settings.json");
+        save_zoom(&path, 32.0).unwrap();
+        assert_eq!(load(Some(&path)).key_matching, KeyRules::default());
+        let rules = KeyRules {
+            relative: false,
+            next: true,
+            previous: false,
+        };
+        save_key_matching(&path, rules).unwrap();
+        save_audio(&path, None, 0.25).unwrap();
+        save_hot_cue_colors(&path, [49; 8]).unwrap();
+        let saved = load(Some(&path));
+        assert_eq!(saved.key_matching, rules);
+        assert_eq!(saved.waveform_zoom, 32.0);
+        assert_eq!(saved.audio_volume, 0.25);
+        assert_eq!(saved.hot_cue_colors, [49; 8]);
+        for raw in [
+            r#"{"waveform_zoom":64}"#,
+            r#"{"key_matching":{},"waveform_zoom":64}"#,
+        ] {
+            fs::write(&path, raw).unwrap();
+            assert_eq!(load(Some(&path)).key_matching, KeyRules::default());
+            assert_eq!(load(Some(&path)).waveform_zoom, 64.0);
+        }
+        fs::write(
+            &path,
+            r#"{"key_matching":{"relative":false},"waveform_zoom":64}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            load(Some(&path)).key_matching,
+            KeyRules {
+                relative: false,
+                ..Default::default()
+            }
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn cue_defaults_round_trip_preserve_other_preferences_and_recover_bad_slots() {

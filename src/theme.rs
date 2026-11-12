@@ -13,6 +13,15 @@ pub const GREEN: Color32 = Color32::from_rgb(118, 216, 164);
 
 pub fn configure(ctx: &Context, scale: f32) {
     ctx.set_zoom_factor(scale);
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        "NotoSans-Bold".into(),
+        FontData::from_static(include_bytes!("fonts/NotoSans-Bold.ttf")).into(),
+    );
+    let mut bold = fonts.families[&FontFamily::Proportional].clone();
+    bold.insert(0, "NotoSans-Bold".into());
+    fonts.families.insert(FontFamily::Name("Bold".into()), bold);
+    ctx.set_fonts(fonts);
     let mut style = Style {
         visuals: Visuals::dark(),
         ..Default::default()
@@ -68,12 +77,33 @@ pub fn primary(ui: &mut Ui, label: &str, size: Vec2) -> Response {
 }
 
 pub fn text(painter: &Painter, rect: Rect, text: impl Into<String>, size: f32, color: Color32) {
-    let mut job = egui::text::LayoutJob::simple(
-        text.into(),
-        FontId::proportional(size),
+    text_with_font(painter, rect, text, FontId::proportional(size), color);
+}
+
+pub fn bold_text(
+    painter: &Painter,
+    rect: Rect,
+    text: impl Into<String>,
+    size: f32,
+    color: Color32,
+) {
+    text_with_font(
+        painter,
+        rect,
+        text,
+        FontId::new(size, FontFamily::Name("Bold".into())),
         color,
-        rect.width().max(1.0),
     );
+}
+
+fn text_with_font(
+    painter: &Painter,
+    rect: Rect,
+    text: impl Into<String>,
+    font: FontId,
+    color: Color32,
+) {
+    let mut job = egui::text::LayoutJob::simple(text.into(), font, color, rect.width().max(1.0));
     job.wrap.max_rows = 1;
     let galley = painter.layout_job(job);
     painter
@@ -120,6 +150,18 @@ pub fn icon(p: &Painter, center: Pos2, kind: usize, color: Color32) {
                 .collect();
             p.add(Shape::closed_line(outline, s));
             p.circle_stroke(center, 3.5, s);
+        }
+        5 => {
+            p.add(Shape::closed_line(
+                vec![
+                    center + vec2(-8.0, -11.0),
+                    center + vec2(8.0, -11.0),
+                    center + vec2(8.0, 11.0),
+                    center + vec2(0.0, 5.0),
+                    center + vec2(-8.0, 11.0),
+                ],
+                s,
+            ));
         }
         _ => {
             p.rect_stroke(r, 3, s, StrokeKind::Inside);

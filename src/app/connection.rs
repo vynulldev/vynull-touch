@@ -31,6 +31,7 @@ impl App {
 
     pub(super) fn reconnect_session(&mut self, ctx: &Context) {
         let pending = self.browser_settings.pending
+            || self.prepare.pending.is_some()
             || self.device_settings.pending
             || self.grid_editor.as_ref().is_some_and(|e| e.pending)
             || self.load_busy
@@ -132,6 +133,7 @@ impl App {
                         self.keyboard = None;
                         self.cue_defaults = Some(cue_defaults_ui::Picker::default());
                     }
+                    self.key_matching_button(ui, "Key matching…", 164.0);
                 });
                 ui.add_space(10.0);
                 ui.label(RichText::new("VYNULL SERVER").size(11.0).color(ORANGE));
@@ -142,7 +144,7 @@ impl App {
                 self.hit("Server address", response.rect);
                 if response.clicked() { self.keyboard = Some(Field::Server); }
                 ui.horizontal(|ui| {
-                    let enabled = !self.browser_settings.pending && !self.device_settings.pending && !self.load_busy && self.cue_quick.is_none()
+                    let enabled = self.prepare.pending.is_none() && !self.browser_settings.pending && !self.device_settings.pending && !self.load_busy && self.cue_quick.is_none()
                         && !self.cue_editor.as_ref().is_some_and(|editor| editor.pending);
                     let connect = ui.add_enabled_ui(enabled, |ui| theme::primary(ui, "Connect", vec2(130.0, 48.0))).inner;
                     self.hit("Server connect", connect.rect);
