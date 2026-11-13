@@ -1,5 +1,7 @@
 # Vynull Touch
 
+[![CI](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml/badge.svg)](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml)
+
 A native Rust touchscreen companion for [Vynull](https://github.com/vynulldev/vynull):
 browse the library, prepare tracks, and monitor and load the decks. It is built for
 an **800×480 landscape display** and adapts to 1024×600 and larger windows. See the
