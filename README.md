@@ -128,6 +128,17 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - **Diagnostics:** status, versions, request errors, the Vynull log, and a report
   to copy.
 
+**Record**
+
+Record the stereo audio input of the device running Touch (on the Pi, a HiFiBerry
+or the system default) to WAV: 16- or 24-bit, Auto or 44.1–192 kHz. **Check
+levels** shows the meters without recording. Recording continues across tabs and
+reconnects, with a **REC** timer in the status bar, and splits into numbered parts
+near 1 GiB. Files never overwrite each other; the default folder is
+`~/Music/Vynull Recordings`.
+
+![Session recording at 800×480](docs/session-recording-800x480.png)
+
 Escape closes the keyboard or a dialog, returns from Inspect, or leaves
 fullscreen; mouse and keyboard work too. Settings are saved in
 `$XDG_CONFIG_HOME/vynull-touch/settings.json` (or `~/.config/vynull-touch/`).
@@ -222,8 +233,8 @@ Screenshots go to a new temporary folder unless you pass `--output-dir`; the
 script never touches real players or a real library. Only the images linked here
 belong in `docs/`.
 
-Library requests, player status, artwork, deck analysis, preview audio and logs
-each run on their own bounded worker, so a slow request never stalls the deck
-monitor. Player status is polled about every 250 ms.
+Library requests, player status, artwork, deck analysis, preview audio, logs and
+recording each run on their own bounded worker, so a slow request never stalls
+the deck monitor. Player status is polled about every 250 ms.
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).

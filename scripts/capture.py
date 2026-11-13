@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, help='Screenshot destination (default: a new temporary directory, retained after capture)')
+    parser.add_argument('--recording-only', action='store_true', help='Exercise recording using a private silent stereo test source and capture the Record page')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
     parser.add_argument('--grid-editor-only', action='store_true', help='Capture the beat-grid editor using fictional demo tracks')
     parser.add_argument('--device-settings-only', action='store_true', help='Capture CDJ/mixer settings using a fictional demo profile')
@@ -65,6 +66,11 @@ def main():
             env = dict(os.environ, DISPLAY=':' + number, LIBGL_ALWAYS_SOFTWARE='1', XDG_RUNTIME_DIR=tmp, LC_ALL='C')
             env['XDG_CONFIG_HOME'] = str(Path(tmp) / 'config')
             env.pop('WAYLAND_DISPLAY', None)
+            if args.recording_only:
+                with preview_output(env) as audio_env:
+                    subprocess.run(['pactl', 'set-default-source', 'vynull_preview.monitor'], env=audio_env, check=True)
+                    capture_interactions(audio_env, output_dir, recording_only=True)
+                return
             if args.tag_picker_only or args.tag_manager_only or args.playlist_icons_only:
                 from capture_tag_fixture import tag_fixture
                 with tag_fixture(playlist_icons=args.playlist_icons_only) as origin:
@@ -199,11 +205,17 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, recording_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('{"players":{"compare":false}}')
+    if recording_only:
+        # Record to the default ~/Music/Vynull Recordings in a private home, so the
+        # Record page shows the default folder.
+        settings.write_text('{}')
+        env = dict(env, HOME=str(output_dir / 'home'))
+        recordings = output_dir / 'home' / 'Music' / 'Vynull Recordings'
     if library_preview_only:
         settings.write_text(json.dumps({'players': {'compare': False}, 'audio_volume': 0.0}))
     if cue_defaults_only:
@@ -282,6 +294,111 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             report = subprocess.check_output(['xclip', '-o', '-selection', 'clipboard'], env=env, text=True, timeout=5)
             assert report.startswith('Vynull Touch diagnostic report'), 'System clipboard did not receive the report'
             assert 'Build:' in report and 'SERVER LOG SNAPSHOT' in report
+
+        if recording_only:
+            import math
+            import struct
+            import wave
+            click(44, 400)
+            capture('recording-idle')
+            tone = output_dir / 'stereo-test-signal.wav'
+            with wave.open(str(tone), 'wb') as wav:
+                wav.setparams((2, 2, 48000, 0, 'NONE', 'not compressed'))
+                period = b''.join(struct.pack('<hh', int(8192 * math.sin(2 * math.pi * 440 * n / 48000)), int(4096 * math.sin(2 * math.pi * 880 * n / 48000))) for n in range(48000))
+                wav.writeframes(period * 60)
+            playback = subprocess.Popen(['paplay', str(tone)], env=env)
+            try:
+                click(600, 367)  # Check levels: capture without creating a file.
+                time.sleep(8)
+                capture('recording-levels')
+                assert not list(recordings.glob('*.wav'))
+                click(280, 367)  # Start recording on the already-open input.
+                time.sleep(2)
+                files = list(recordings.glob('*.wav'))
+                assert len(files) == 1, 'The Record button did not create a WAV'
+                capture('session-recording')
+                for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                    xlib.XResizeWindow(display, int(window, 16), width, height)
+                    xlib.XFlush(display)
+                    time.sleep(.5)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'recording-active-{width}x{height}.png')], env=env, check=True, timeout=10)
+                xlib.XResizeWindow(display, int(window, 16), 800, 480)
+                xlib.XFlush(display)
+                time.sleep(.5)
+                before = files[0].stat().st_size
+                click(44, 94)  # Browsing another tab must not stop capture.
+                time.sleep(1.5)
+                capture('recording-players')
+                assert files[0].stat().st_size > before, 'Recording stopped when switching tabs'
+                click(44, 405)
+                click(280, 367)  # Stop & save.
+                time.sleep(.5)
+                capture('recording-saved')
+                final_size = files[0].stat().st_size
+                time.sleep(.5)
+                assert files[0].stat().st_size == final_size, 'Recording continued after Stop'
+                with wave.open(str(files[0]), 'rb') as wav:
+                    assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 3, 48000)
+                    assert wav.getnframes() > 48000 * 3
+                    data = wav.readframes(wav.getnframes())
+                    assert len(data) + 44 == final_size, 'Final WAV header does not match saved audio'
+                peaks = [max(abs(int.from_bytes(data[i:i+3], 'little', signed=True)) for i in range(channel * 3, len(data), 6)) / 8388608 for channel in [0, 1]]
+                assert abs(peaks[0] - .25) < .01 and abs(peaks[1] - .125) < .01, f'Stereo levels changed: {peaks}'
+                print(f'Recording verified: {len(data) / 6 / 48000:.2f}s, PCM24 stereo, channel peaks {peaks}', flush=True)
+                # Change the persisted format, then record directly from Idle.
+                click(680, 167)
+                for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                    xlib.XResizeWindow(display, int(window, 16), width, height)
+                    xlib.XFlush(display)
+                    time.sleep(.5)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'recording-format-{width}x{height}.png')], env=env, check=True, timeout=10)
+                xlib.XResizeWindow(display, int(window, 16), 800, 480)
+                xlib.XFlush(display)
+                time.sleep(.5)
+                click(400, 192)  # 96 kHz.
+                click(250, 330)  # 16-bit.
+                chosen = json.loads(settings.read_text())['recording']
+                assert chosen['sample_rate'] == 'hz96000', chosen
+                assert chosen['bit_depth'] == 'pcm16', chosen
+                escape()
+                click(280, 367)
+                time.sleep(4)
+                capture('recording-96k-16bit')
+                class ClientMessage(c.Structure):
+                    _fields_ = [('type', c.c_int), ('serial', c.c_ulong), ('send_event', c.c_int), ('display', c.c_void_p), ('window', c.c_ulong), ('message_type', c.c_ulong), ('format', c.c_int), ('data', c.c_long * 5)]
+                class XEvent(c.Union):
+                    _fields_ = [('message', ClientMessage), ('padding', c.c_long * 24)]
+                xlib.XInternAtom.argtypes = [c.c_void_p, c.c_char_p, c.c_int]
+                xlib.XInternAtom.restype = c.c_ulong
+                xlib.XSendEvent.argtypes = [c.c_void_p, c.c_ulong, c.c_int, c.c_long, c.POINTER(XEvent)]
+                event = XEvent()
+                event.message.type = 33
+                event.message.display = display
+                event.message.window = int(window, 16)
+                event.message.message_type = xlib.XInternAtom(display, b'WM_PROTOCOLS', 0)
+                event.message.format = 32
+                event.message.data[0] = xlib.XInternAtom(display, b'WM_DELETE_WINDOW', 0)
+                xlib.XSendEvent(display, int(window, 16), 0, 0, c.byref(event))
+                xlib.XFlush(display)
+                time.sleep(.5)
+                assert app.poll() is None, 'Window close bypassed the recording guard'
+                capture('recording-close-confirmation')
+                click(440, 270)  # Stop & quit in the confirmation.
+                app.wait(timeout=10)
+                completed = sorted(recordings.glob('*.wav'))
+                assert len(completed) == 2, 'Second recording did not start'
+                with wave.open(str(completed[-1]), 'rb') as wav:
+                    assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 2, 96000)
+                    assert wav.getnframes() > 0
+                    assert wav.getnframes() * 4 + 44 == completed[-1].stat().st_size, 'Quit did not finalize the WAV'
+                    data = wav.readframes(wav.getnframes())
+                peaks = [max(abs(int.from_bytes(data[i:i+2], 'little', signed=True)) for i in range(channel * 2, len(data), 4)) / 32768 for channel in [0, 1]]
+                assert abs(peaks[0] - .25) < .01 and abs(peaks[1] - .125) < .01, f'PCM16 stereo levels changed: {peaks}'
+                print(f'Stop & quit finalized the second recording: PCM16 stereo at 96 kHz, channel peaks {peaks}', flush=True)
+            finally:
+                playback.terminate()
+                playback.wait(timeout=5)
+            return
 
         if key_matching_only:
             click(760, 26)

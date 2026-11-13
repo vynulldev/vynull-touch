@@ -9,8 +9,17 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 268 tests (the opt-in
-hardware-audio test skipped). What's missing across the board is
+The `feat/session-recording` branch adds a local session recorder: input
+selection, stereo meters, a persistent recording timer, a saved output folder,
+and WAV recording with automatic file splitting. Its saved format controls
+(Auto or 44.1–192 kHz, 16-bit or 24-bit) lock while the input is open. Desktop
+tests cover recording from a virtual stereo source, switching tabs and finishing
+through the close confirmation, and native stereo recordings at 48 kHz/24-bit
+and 96 kHz/16-bit work. Playback/import and track-change markers can follow
+after testing capture from a HiFiBerry.
+
+The features below are built; the latest build passed 283 tests (the opt-in
+hardware-audio test skipped) and Clippy. What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
 **Library**
