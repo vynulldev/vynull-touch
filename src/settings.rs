@@ -22,6 +22,7 @@ pub struct Settings {
     pub waveform_overview: crate::waveform::Overview,
     pub audio_output: Option<crate::preview::OutputDevice>,
     pub audio_volume: f32,
+    pub recording: crate::recording::Preferences,
     pub players: Players,
     pub library_order: crate::library::Order,
     pub key_matching: crate::matching::KeyRules,
@@ -83,6 +84,7 @@ impl Default for Settings {
             waveform_overview: Default::default(),
             audio_output: None,
             audio_volume: 0.5,
+            recording: Default::default(),
             players: Players::default(),
             library_order: Default::default(),
             key_matching: Default::default(),
@@ -257,6 +259,12 @@ pub fn save_players(path: &Path, players: Players) -> io::Result<()> {
     save(path, &settings)
 }
 
+pub fn save_recording(path: &Path, recording: crate::recording::Preferences) -> io::Result<()> {
+    let mut settings = load(Some(path));
+    settings.recording = recording;
+    save(path, &settings)
+}
+
 pub fn save_order(path: &Path, order: crate::library::Order) -> io::Result<()> {
     let mut settings = load(Some(path));
     settings.library_order = order;
@@ -306,6 +314,33 @@ fn save(path: &Path, settings: &Settings) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recording_preferences_survive_unrelated_saves() {
+        let root =
+            std::env::temp_dir().join(format!("vynull-record-settings-{}", std::process::id()));
+        let path = root.join("settings.json");
+        let recording = crate::recording::Preferences {
+            input: Some(crate::recording::Device {
+                id: "pulse:input".into(),
+                name: "HiFiBerry".into(),
+                host: "PulseAudio".into(),
+            }),
+            directory: "/mnt/data/Recordings".into(),
+            sample_rate: crate::recording::SampleRate::Hz96000,
+            bit_depth: crate::recording::BitDepth::Pcm16,
+        };
+        super::save_recording(&path, recording.clone()).unwrap();
+        super::save_audio(&path, None, 0.25).unwrap();
+        super::save_zoom(&path, 32.0).unwrap();
+        let saved = super::load(Some(&path));
+        assert_eq!(saved.recording.input, recording.input);
+        assert_eq!(saved.recording.directory, recording.directory);
+        assert_eq!(saved.recording.sample_rate, recording.sample_rate);
+        assert_eq!(saved.recording.bit_depth, recording.bit_depth);
+        assert_eq!(saved.audio_volume, 0.25);
+        assert_eq!(saved.waveform_zoom, 32.0);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     use super::*;
 
     #[test]

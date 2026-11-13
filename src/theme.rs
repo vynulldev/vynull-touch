@@ -151,6 +151,10 @@ pub fn icon(p: &Painter, center: Pos2, kind: usize, color: Color32) {
             p.add(Shape::closed_line(outline, s));
             p.circle_stroke(center, 3.5, s);
         }
+        6 => {
+            p.circle_stroke(center, 12.0, s);
+            p.circle_filled(center, 7.0, color);
+        }
         5 => {
             p.add(Shape::closed_line(
                 vec![

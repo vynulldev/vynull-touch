@@ -19,6 +19,7 @@ mod model;
 mod phrases;
 mod prepare;
 mod preview;
+mod recording;
 mod settings;
 mod theme;
 mod waveform;

@@ -37,6 +37,7 @@ mod on_deck;
 mod phrase_tests;
 mod player_ui;
 mod prepare_ui;
+mod recording_ui;
 mod refresh;
 mod track_scroll;
 
@@ -47,6 +48,7 @@ enum Page {
     Players,
     Match,
     Prepare,
+    Record,
     Settings,
     DeviceSettings,
     Diag,
@@ -56,6 +58,7 @@ enum Page {
 enum Field {
     Search,
     Server,
+    RecordingDirectory,
 }
 pub struct App {
     options: Options,
@@ -67,6 +70,7 @@ pub struct App {
     refresh: refresh::State,
     library_scroll: Option<Id>,
     preview: Controller,
+    recorder: recording_ui::Recorder,
     library_preview: Option<Track>,
     audio_dialog: bool,
     audio_devices: Vec<preview::OutputDevice>,
@@ -179,6 +183,7 @@ impl App {
             refresh: refresh::State::default(),
             library_scroll: None,
             preview,
+            recorder: recording_ui::Recorder::new(ctx.clone(), saved.recording),
             library_preview: None,
             audio_dialog: false,
             audio_devices: vec![],
@@ -885,12 +890,16 @@ impl App {
                         (Page::Collection, "Collection", 0),
                         (Page::Playlists, "Playlists", 1),
                         (Page::Prepare, "Prepare", 5),
+                        (Page::Record, "Record", 6),
                     ]
                     .iter()
                     {
                         let active = self.navigation_page() == *page;
+                        let height = ((ui.max_rect().height() - ui.spacing().item_spacing.y * 4.0)
+                            / 5.0)
+                            .clamp(48.0, 68.0);
                         let (rect, response) =
-                            ui.allocate_exact_size(vec2(76.0, 68.0), Sense::click());
+                            ui.allocate_exact_size(vec2(76.0, height), Sense::click());
                         if active || response.hovered() {
                             ui.painter()
                                 .rect_filled(rect, 8, if active { SELECTED } else { CARD });
@@ -898,12 +907,12 @@ impl App {
                         let color = if active { ORANGE } else { MUTED };
                         theme::icon(
                             ui.painter(),
-                            rect.center_top() + vec2(0.0, 23.0),
+                            rect.center_top() + vec2(0.0, height * 0.34),
                             *icon,
                             color,
                         );
                         ui.painter().text(
-                            rect.center_bottom() - vec2(0.0, 16.0),
+                            rect.center_bottom() - vec2(0.0, height * 0.23),
                             Align2::CENTER_CENTER,
                             label,
                             FontId::proportional(12.0),
@@ -923,6 +932,7 @@ impl App {
         let ctx = root.ctx().clone();
         let popup_open = Popup::is_any_open(&ctx);
         self.poll(&ctx);
+        self.poll_recorder(&ctx);
         self.sync_library_preview();
         if self.page != Page::Diag {
             self.diagnostics
@@ -1012,7 +1022,12 @@ impl App {
                 } else {
                     self.notice.clone()
                 };
-                ui.add(Label::new(RichText::new(&message).size(12.0).color(MUTED)).truncate())
+                let (message, color) = if let Some((recording, color)) = self.recording_status() {
+                    (format!("{recording}   {message}"), color)
+                } else {
+                    (message, MUTED)
+                };
+                ui.add(Label::new(RichText::new(&message).size(12.0).color(color)).truncate())
                     .on_hover_text(message);
             });
         self.keyboard(root);
@@ -1022,7 +1037,11 @@ impl App {
         CentralPanel::default()
             .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(
                 16,
-                if self.page == Page::Detail { 8 } else { 16 },
+                if matches!(self.page, Page::Detail | Page::Record) {
+                    8
+                } else {
+                    16
+                },
             )))
             .show(root, |ui| {
                 self.connection_banner(ui);
@@ -1032,6 +1051,7 @@ impl App {
                     Page::Players => self.players(ui),
                     Page::Match => self.match_view(ui),
                     Page::Prepare => self.prepare_view(ui),
+                    Page::Record => self.recording_view(ui),
                     Page::Settings => self.settings(ui, &ctx),
                     Page::DeviceSettings => self.device_settings_view(ui),
                     Page::Diag => self.diagnostics(ui),
@@ -1049,6 +1069,7 @@ impl App {
         if self.audio_dialog {
             self.audio_modal(&ctx);
         }
+        self.recording_modals(&ctx);
         if self.cue_editor.is_some() {
             self.cue_modal(&ctx);
         }
@@ -2049,11 +2070,7 @@ impl App {
                                 theme::button(ui, &key.to_string(), vec2(key_width, 44.0), false);
                             self.hit(&format!("Key {key}"), response.rect);
                             if response.clicked() {
-                                let value = if field == Field::Search {
-                                    &mut self.query
-                                } else {
-                                    &mut self.server_draft
-                                };
+                                let value = self.keyboard_value(field);
                                 value.push(key);
                                 changed = true;
                             }
@@ -2063,11 +2080,7 @@ impl App {
                                 theme::button(ui, "Backspace", vec2(128.0, 44.0), false);
                             self.hit("Keyboard backspace", backspace.rect);
                             if backspace.clicked() {
-                                if field == Field::Search {
-                                    self.query.pop();
-                                } else {
-                                    self.server_draft.pop();
-                                }
+                                self.keyboard_value(field).pop();
                                 changed = true;
                             }
                         }
@@ -2085,33 +2098,36 @@ impl App {
                         self.symbols = !self.symbols;
                     }
                     if theme::button(ui, "Clear", vec2(key_width * 1.5, 44.0), false).clicked() {
-                        if field == Field::Search {
-                            self.query.clear();
-                        } else {
-                            self.server_draft.clear();
-                        }
+                        self.keyboard_value(field).clear();
                         changed = true;
                     }
                     let done_width = key_width * 2.5;
                     let space_width =
                         (ui.available_width() - done_width - ui.spacing().item_spacing.x).max(0.0);
                     if theme::button(ui, "Space", vec2(space_width, 44.0), false).clicked() {
-                        if field == Field::Search {
-                            self.query.push(' ');
-                        } else {
-                            self.server_draft.push(' ');
-                        }
+                        self.keyboard_value(field).push(' ');
                         changed = true;
                     }
                     let done = theme::primary(ui, "Done", vec2(done_width, 44.0));
                     self.hit("Keyboard done", done.rect);
                     if done.clicked() {
                         self.keyboard = None;
+                        if field == Field::RecordingDirectory {
+                            self.save_recording_preferences();
+                        }
                     }
                 });
             });
         if changed && field == Field::Search {
             self.filter();
+        }
+    }
+
+    fn keyboard_value(&mut self, field: Field) -> &mut String {
+        match field {
+            Field::Search => &mut self.query,
+            Field::Server => &mut self.server_draft,
+            Field::RecordingDirectory => &mut self.recorder.preferences.directory,
         }
     }
 }
