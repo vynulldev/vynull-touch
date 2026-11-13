@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Feature request
+description: Suggest an idea or improvement for Vynull Touch
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The motivation or use case, for example "During a set I'm trying to … but …"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What you'd like to happen, and where in the app (Library, Inspect, Players, Settings).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: display
+    attributes:
+      label: Display and hardware context
+      description: Does this depend on a display size, a touchscreen, or a specific deck or mixer? Which?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and `ROADMAP.md` for a similar request.
+          required: true
+        - label: I understand Vynull Touch is a hobby project with a narrow scope (browsing, monitoring, deliberate loading and light preparation), and that features needing new server support belong in Vynull first.
+          required: true

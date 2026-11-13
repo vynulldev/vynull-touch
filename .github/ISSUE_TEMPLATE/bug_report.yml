@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Bug report
+description: Something isn't working in Vynull Touch (wrong display, crash, a load or edit that fails…)
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. If the problem is in Vynull itself (the
+        server, deck loading, analysis), please report it on
+        [Vynull's issues](https://github.com/vynulldev/vynull/issues) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what actually happened?
+      placeholder: Tapped Load to… on a track, chose Player 2; the chooser closed but the deck never loaded.
+    validations:
+      required: true
+  - type: dropdown
+    id: demo
+    attributes:
+      label: Does it happen in demo mode?
+      description: "`vynull-touch --demo` uses fictional tracks and players, with no server. It helps tell the app apart from the server."
+      options:
+        - "Yes"
+        - "No"
+        - Didn't try / not applicable
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Vynull Touch version
+      description: The output of `vynull-touch --version` (also in Settings → Diagnostics), plus the git commit if you built it with cargo.
+      placeholder: Vynull Touch 0.1.0 · 20261112T120000Z-1a2b3c4d · aarch64-unknown-linux-gnu
+    validations:
+      required: true
+  - type: input
+    id: vynull-version
+    attributes:
+      label: Vynull version
+      description: Shown under Vynull in Settings → Diagnostics (release tag or commit).
+      placeholder: v0.6.0 / 1a2b3c4
+  - type: textarea
+    id: command
+    attributes:
+      label: How did you run it?
+      description: The full command line, or the autostart entry's `Exec` line.
+      placeholder: vynull-touch --fullscreen --server http://vynull.local:9443
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and display
+      description: The machine, OS, desktop session and display. Add the players and mixer if the bug involves the decks.
+      placeholder: |
+        - Raspberry Pi 5, Raspberry Pi OS (64-bit), Wayland
+        - 800×480 touchscreen, scaling 1.0
+        - 2× CDJ (model + firmware), if relevant
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics report
+      description: |
+        Settings → Diagnostics → **Copy diagnostics**, then paste it here. It includes the server
+        address, the library's track count and any Vynull log entries already fetched, which can
+        show file paths and track titles; remove anything you'd rather not share.
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (optional)
+      description: A screenshot or photo of the screen often shows the problem faster than words.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for a duplicate.
+          required: true

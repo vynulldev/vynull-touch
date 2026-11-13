@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+blank_issues_enabled: false
+contact_links:
+  - name: Vynull server or deck problems
+    url: https://github.com/vynulldev/vynull/issues
+    about: Loading, analysis, library import and anything the decks do are Vynull's. Report those on Vynull's issues.
