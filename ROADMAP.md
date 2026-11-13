@@ -1,6 +1,6 @@
 # Vynull Touch Roadmap
 
-Updated November 12, 2026
+Updated November 13, 2026
 
 Vynull Touch is a touchscreen companion for Vynull: browse the library, prepare
 tracks, and monitor and load the decks. It is built for 800×480 first; larger
@@ -9,16 +9,7 @@ dates.
 
 ## Where things stand
 
-The `feat/session-recording` branch adds a local session recorder: input
-selection, stereo meters, a persistent recording timer, a saved output folder,
-and WAV recording with automatic file splitting. Its saved format controls
-(Auto or 44.1–192 kHz, 16-bit or 24-bit) lock while the input is open. Desktop
-tests cover recording from a virtual stereo source, switching tabs and finishing
-through the close confirmation, and native stereo recordings at 48 kHz/24-bit
-and 96 kHz/16-bit work. Playback/import and track-change markers can follow
-after testing capture from a HiFiBerry.
-
-The features below are built; the latest build passed 283 tests (the opt-in
+Everything below is built. The latest build passed 283 tests (the opt-in
 hardware-audio test skipped) and Clippy. What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -61,6 +52,12 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
   categories, sort menu and track-detail column.
 - Diagnostics: status, versions, request errors, logs and a copyable report.
 
+**Record**
+
+- Session recording of the device's stereo input to WAV: 16 or 24 bits, Auto or
+  44.1–192 kHz, level meters, a REC timer that stays in the status bar, a saved
+  input, format and folder, and numbered parts near 1 GiB.
+
 **Releases:** `scripts/release.py` builds natively, checks checksums, installs
 atomically, keeps the previous build for rollback and can restart the open UI.
 
@@ -75,6 +72,8 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 3. Measure performance on the Pi and set budgets from it.
 4. Add recently played history, and document the desktop shortcut and
    autostart setup.
+5. Test recording from a HiFiBerry, then add playback/import and track-change
+   markers to recordings.
 
 ## Milestones
 
