@@ -15,8 +15,7 @@ an **800×480 landscape display** and adapts to 1024×600 and larger windows. Se
 playback layouts inspired by the XDJ-AZ interface: a black-and-blue theme, live
 deck summaries beneath the track lists, larger time and BPM readouts under the
 waveforms, and player controls in the app toolbar. The screenshots below show
-the baseline UI; `python3 scripts/capture.py --xdj-az-only` captures the
-experiment.
+this branch's current UI.
 
 ![Collection at 800×480](docs/collection-800x480.png)
 
