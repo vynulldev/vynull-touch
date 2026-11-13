@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml/badge.svg)](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml)
 [![License: GPLv3](https://img.shields.io/badge/license-GPLv3-ff7714)](LICENSE)
+[![Rust](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fvynulldev%2Fvynull-touch%2Fmain%2Frust-toolchain.toml&query=%24.toolchain.channel&label=rust&color=ff7714)](rust-toolchain.toml)
 ![Platform](https://img.shields.io/badge/platform-linux%20x86--64%20%7C%20arm64-ff7714)
 
 A native Rust touchscreen companion for [Vynull](https://github.com/vynulldev/vynull):
