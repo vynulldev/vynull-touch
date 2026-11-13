@@ -19,6 +19,20 @@ an **800×480 landscape display** and adapts to 1024×600 and larger windows. Se
 
 ![Beat-snapped loop preview at 800×480](docs/loop-preview-800x480.png)
 
+## Before you start
+
+This is a hobby project: a touchscreen companion for [Vynull](https://github.com/vynulldev/vynull),
+which is a hobby project too. It isn't affiliated with Pioneer DJ / AlphaTheta.
+
+It's a work in progress. Most of it is covered by automated tests and the demo,
+but hasn't been checked on a physical touchscreen or with live CDJs yet (see the
+[roadmap](ROADMAP.md)), so expect bugs, rough edges and layouts that still change.
+Bug reports and PRs are welcome.
+
+Use it at your own risk. Edits to tags, playlists, cues, beat grids and the CDJ
+and mixer settings write to your Vynull library and settings, so back up your
+library first, and **Load to…** loads real decks. Don't rely on it at a real gig.
+
 ## Try it
 
 ```sh
