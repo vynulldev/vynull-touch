@@ -787,15 +787,13 @@ impl App {
     fn header(&mut self, root: &mut Ui) {
         Panel::top("header")
             .exact_size(52.0)
-            .frame(
-                Frame::new()
-                    .fill(PANEL)
-                    .inner_margin(Margin::symmetric(16, 0)),
-            )
+            .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(16, 0)))
             .show(root, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.label(RichText::new("vynull").size(29.0).color(ORANGE));
-                    if self.page != Page::Collection || ui.max_rect().width() >= 960.0 {
+                    ui.label(RichText::new("vynull").size(29.0).color(CYAN));
+                    if !matches!(self.page, Page::Collection | Page::Players)
+                        || ui.max_rect().width() >= 960.0
+                    {
                         ui.add_space(8.0);
                         ui.label(RichText::new("TOUCH").size(11.0).color(MUTED));
                     }
@@ -814,7 +812,7 @@ impl App {
                             ui.painter(),
                             settings.rect.center(),
                             3,
-                            if active { ORANGE } else { MUTED },
+                            if active { CYAN } else { MUTED },
                         );
                         self.hit("Setup", settings.rect);
                         if settings.clicked() {
@@ -862,12 +860,11 @@ impl App {
                                 self.open_playlist_manager(None);
                             }
                         } else if self.page == Page::Players {
-                            let matches =
-                                theme::button(ui, "Match a player", vec2(172.0, 48.0), false);
-                            self.hit("Match a player", matches.rect);
-                            if matches.clicked() {
-                                self.open_matches();
-                            }
+                            ui.allocate_ui_with_layout(
+                                vec2(ui.available_width(), 48.0),
+                                Layout::left_to_right(Align::Center),
+                                |ui| self.players_toolbar(ui),
+                            );
                         }
                     });
                 });
@@ -902,9 +899,11 @@ impl App {
                             ui.allocate_exact_size(vec2(76.0, height), Sense::click());
                         if active || response.hovered() {
                             ui.painter()
-                                .rect_filled(rect, 8, if active { SELECTED } else { CARD });
+                                .rect_filled(rect, 0, if active { BLUE } else { CARD });
                         }
-                        let color = if active { ORANGE } else { MUTED };
+                        ui.painter()
+                            .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, LINE));
+                        let color = if active { TEXT } else { MUTED };
                         theme::icon(
                             ui.painter(),
                             rect.center_top() + vec2(0.0, height * 0.34),
@@ -1031,13 +1030,20 @@ impl App {
                     .on_hover_text(message);
             });
         self.keyboard(root);
+        self.browse_deck_dock(root);
         if self.keyboard.is_none() {
             self.navigation(root);
         }
         CentralPanel::default()
             .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(
                 16,
-                if matches!(self.page, Page::Detail | Page::Record) {
+                if matches!(self.page, Page::Detail | Page::Record)
+                    || (self.keyboard.is_none()
+                        && matches!(
+                            self.page,
+                            Page::Collection | Page::Playlists | Page::Prepare
+                        ))
+                {
                     8
                 } else {
                     16

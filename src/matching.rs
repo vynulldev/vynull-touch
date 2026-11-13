@@ -45,7 +45,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             seed: None,
-            tolerance: 6.0,
+            tolerance: 3.0,
             keys: true,
             key_rules: KeyRules::default(),
             half_double: false,

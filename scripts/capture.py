@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, help='Screenshot destination (default: a new temporary directory, retained after capture)')
+    parser.add_argument('--readme-only', action='store_true', help='Recreate the 13 README showcase images using fictional demo tracks and private test audio')
+    parser.add_argument('--xdj-az-only', action='store_true', help='Capture the experimental XDJ-AZ browser, deck dock and player layouts')
     parser.add_argument('--recording-only', action='store_true', help='Exercise recording using a private silent stereo test source and capture the Record page')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
     parser.add_argument('--grid-editor-only', action='store_true', help='Capture the beat-grid editor using fictional demo tracks')
@@ -68,6 +70,15 @@ def main():
             env.pop('WAYLAND_DISPLAY', None)
             if args.recording_only:
                 with preview_output(env) as audio_env:
+                    subprocess.run(['pactl', 'set-default-source', 'vynull_preview.monitor'], env=audio_env, check=True)
+                    capture_interactions(audio_env, output_dir, recording_only=True)
+                return
+            if args.xdj_az_only:
+                capture_interactions(env, output_dir, xdj_az_only=True)
+                return
+            if args.readme_only:
+                with preview_output(env) as audio_env:
+                    capture_interactions(audio_env, output_dir, readme_only=True)
                     subprocess.run(['pactl', 'set-default-source', 'vynull_preview.monitor'], env=audio_env, check=True)
                     capture_interactions(audio_env, output_dir, recording_only=True)
                 return
@@ -205,7 +216,7 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, recording_only=False, server_origin=None):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, readme_only=False, xdj_az_only=False, recording_only=False, server_origin=None):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -216,7 +227,9 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
         settings.write_text('{}')
         env = dict(env, HOME=str(output_dir / 'home'))
         recordings = output_dir / 'home' / 'Music' / 'Vynull Recordings'
-    if library_preview_only:
+    if xdj_az_only:
+        settings.write_text('{"players":{"compare":true}}')
+    if library_preview_only or readme_only:
         settings.write_text(json.dumps({'players': {'compare': False}, 'audio_volume': 0.0}))
     if cue_defaults_only:
         settings.write_text(json.dumps({'hot_cue_colors': [49, 56, 60, 62, 1, 5, 9, 14]}))
@@ -299,7 +312,7 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             import math
             import struct
             import wave
-            click(44, 400)
+            click(44, 345)
             capture('recording-idle')
             tone = output_dir / 'stereo-test-signal.wav'
             with wave.open(str(tone), 'wb') as wav:
@@ -400,6 +413,112 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
                 playback.wait(timeout=5)
             return
 
+        if xdj_az_only:
+            def sizes(name):
+                xtest.XTestFakeMotionEvent(display, 0, 2, 2, 0)
+                for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                    xlib.XResizeWindow(display, int(window, 16), width, height)
+                    xlib.XFlush(display)
+                    time.sleep(.5)
+                    subprocess.run(['import', '-window', window, str(output_dir / f'xdj-{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
+                xlib.XResizeWindow(display, int(window, 16), 800, 480)
+                xlib.XFlush(display)
+                time.sleep(.4)
+
+            click(300, 182)
+            click(720, 350)
+            click(400, 278)  # Cue a different track on Player 2.
+            sizes('library')
+            click(44, 94)
+            sizes('waveforms')
+            click(400, 120)
+            sizes('focus')
+            click(155, 92)
+            click(260, 26)
+            sizes('cards')
+            click(44, 174)
+            click(300, 132)
+            click(610, 350)
+            sizes('inspect')
+            click(44, 250)
+            sizes('playlists')
+            click(44, 174)
+            click(220, 26)
+            for char in 'rain':
+                code = xlib.XKeysymToKeycode(display, ord(char))
+                for pressed in [True, False]:
+                    xtest.XTestFakeKeyEvent(display, code, pressed, 0)
+                    xlib.XFlush(display)
+                    time.sleep(.05)
+            sizes('search')
+            return
+
+        if readme_only:
+            def resize(width, height):
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.4)
+
+            def showcase(name, width=800, height=480):
+                # Move away from controls so tooltips/hover states don't obscure the UI.
+                xtest.XTestFakeMotionEvent(display, 0, 2, 2, 0)
+                xlib.XFlush(display)
+                time.sleep(.4)
+                subprocess.run(['import', '-window', window, str(output_dir / f'{name}-{width}x{height}.png')], env=env, check=True, timeout=10)
+
+            click(44, 174)
+            showcase('cue-preview')
+            click(300, 142)
+            showcase('collection')
+            click(610, 350)
+            showcase('cue-inspect')
+            click(657, 359)  # Fit the whole track in the detailed waveform.
+            click(575, 359)  # Hide the beat grid to show cue markers clearly.
+            resize(1280, 800)
+            showcase('cue-inspect-fit', 1280, 800)
+            resize(800, 480)
+            click(575, 359)
+            for _ in range(3):
+                click(758, 359)  # Return to 8x.
+            click(228, 305)  # Recall cue B, then jump forward four beats.
+            click(422, 359)
+            showcase('beat-jump')
+            click(440, 148)  # Seek away from existing cues.
+            click(758, 359)
+            click(486, 305)  # Create hot cue E at the quantized position.
+            showcase('hot-cues')
+            click(228, 305)
+            click(605, 430)
+            click(308, 359)  # Set an eight-beat loop.
+            click(350, 430)  # Preview it on the silent output.
+            time.sleep(.7)
+            showcase('loop-preview')
+
+            click(44, 174)
+            click(300, 191)
+            click(720, 350)
+            click(400, 278)  # Load a different demo track onto the cued second deck.
+            click(44, 94)
+            showcase('players')
+            click(230, 94)
+            showcase('player-focus')
+            click(155, 92)
+            click(155, 26)
+            showcase('players-compare')
+
+            click(44, 174)
+            click(220, 26)
+            for char in 'rain':
+                code = xlib.XKeysymToKeycode(display, ord(char))
+                for pressed in [True, False]:
+                    xtest.XTestFakeKeyEvent(display, code, pressed, 0)
+                    xlib.XFlush(display)
+                    time.sleep(.05)
+            showcase('keyboard')
+            resize(1280, 800)
+            showcase('search-results', 1280, 800)
+            return
+
         if key_matching_only:
             click(760, 26)
             capture('key-matching-settings')
@@ -424,7 +543,7 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
             capture('key-matching-library-chooser')
             escape()
             click(44, 94)
-            click(480, 26)
+            click(400, 26)
             capture('key-matching-player-results')
             return
 
