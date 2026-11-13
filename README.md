@@ -1,6 +1,8 @@
 # Vynull Touch
 
 [![CI](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml/badge.svg)](https://github.com/vynulldev/vynull-touch/actions/workflows/ci.yml)
+[![License: GPLv3](https://img.shields.io/badge/license-GPLv3-ff7714)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-linux%20x86--64%20%7C%20arm64-ff7714)
 
 A native Rust touchscreen companion for [Vynull](https://github.com/vynulldev/vynull):
 browse the library, prepare tracks, and monitor and load the decks. It is built for
