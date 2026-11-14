@@ -4,6 +4,7 @@ use crate::decks::{Assets, Key, View};
 use std::sync::Arc;
 
 mod compare;
+mod dock;
 mod focus;
 mod pair;
 #[cfg(test)]
@@ -30,116 +31,7 @@ impl App {
             self.player_focus(ui, number);
             return;
         }
-        let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 48.0), Sense::hover());
-        let live = self.fresh() && self.linked;
-        theme::text(
-            ui.painter(),
-            Rect::from_min_size(header.min, vec2(110.0, 28.0)),
-            "Players",
-            25.0,
-            TEXT,
-        );
-        theme::text(
-            ui.painter(),
-            Rect::from_min_size(header.min + vec2(116.0, 0.0), vec2(110.0, 28.0)),
-            if self.deck_compare {
-                format!("{} s WINDOW", self.deck_span as u32)
-            } else if self.options.demo {
-                "DEMO".into()
-            } else if !self.fresh() {
-                "OFFLINE".into()
-            } else if live {
-                "LINK ONLINE".into()
-            } else {
-                "LINK OFF".into()
-            },
-            11.0,
-            if live { GREEN } else { MUTED },
-        );
-        let buttons_width = 156.0;
-        let compare_rect = Rect::from_min_size(
-            pos2(header.right() - buttons_width - 114.0, header.top()),
-            vec2(106.0, 48.0),
-        );
-        let compare = ui.put(
-            compare_rect,
-            Button::new(
-                RichText::new(if self.deck_compare {
-                    "Cards"
-                } else {
-                    "Waveforms"
-                })
-                .size(14.0),
-            )
-            .fill(CARD)
-            .corner_radius(8),
-        );
-        self.hit("Deck compare", compare.rect);
-        if compare.clicked() {
-            self.deck_compare = !self.deck_compare;
-            self.save_players();
-        }
-        let selected = self
-            .selected
-            .and_then(|id| self.tracks.iter().find(|t| t.id == id));
-        let hint = selected.map_or("Choose a library track to load".into(), |t| {
-            format!("Selected: {}", t.title)
-        });
-        theme::text(
-            ui.painter(),
-            Rect::from_min_size(
-                header.min + vec2(0.0, 31.0),
-                vec2(
-                    (header.width()
-                        - buttons_width
-                        - 126.0
-                        - if self.deck_compare { 112.0 } else { 0.0 })
-                    .max(80.0),
-                    17.0,
-                ),
-            ),
-            hint,
-            12.0,
-            MUTED,
-        );
-        let pair = ui.put(
-            Rect::from_min_size(
-                pos2(header.right() - buttons_width, header.top()),
-                vec2(buttons_width, 48.0),
-            ),
-            Button::new(format!(
-                "Pair {} + {}…",
-                self.deck_pair[0], self.deck_pair[1]
-            ))
-            .fill(CARD)
-            .corner_radius(8),
-        );
-        self.hit("Deck pair", pair.rect);
-        if pair.clicked() {
-            self.deck_picker = Some(self.deck_pair);
-        }
         if self.deck_compare {
-            let mut controls = ui.new_child(UiBuilder::new().max_rect(header));
-            for (index, (name, factor)) in [("−", 2.0), ("+", 0.5)].into_iter().enumerate() {
-                let span = (self.deck_span * factor).clamp(4.0, 64.0);
-                let rect = Rect::from_min_size(
-                    pos2(
-                        compare_rect.left() - 112.0 + index as f32 * 56.0,
-                        header.top(),
-                    ),
-                    vec2(48.0, 48.0),
-                );
-                let button = controls
-                    .add_enabled_ui(span != self.deck_span, |ui| {
-                        ui.put(rect, Button::new(name).fill(CARD))
-                    })
-                    .inner;
-                self.hit(&format!("Compare zoom {name}"), button.rect);
-                if button.clicked() {
-                    self.deck_span = span;
-                    self.save_players();
-                }
-            }
             self.player_compare(ui, self.deck_pair);
             return;
         }
@@ -183,6 +75,60 @@ impl App {
         {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
+    }
+
+    /// Put view controls in the shared header so the performance screen can use
+    /// its entire body for waveforms and large deck readouts.
+    pub(super) fn players_toolbar(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            if self.deck_focus.is_none() {
+                if self.deck_compare {
+                    for (label, factor) in [("−", 2.0), ("+", 0.5)] {
+                        let span = (self.deck_span * factor).clamp(4.0, 64.0);
+                        let button = ui
+                            .add_enabled_ui(span != self.deck_span, |ui| {
+                                theme::button(ui, label, vec2(48.0, 48.0), false)
+                            })
+                            .inner;
+                        self.hit(&format!("Compare zoom {label}"), button.rect);
+                        if button.clicked() {
+                            self.deck_span = span;
+                            self.save_players();
+                        }
+                    }
+                }
+                let compare = theme::button(
+                    ui,
+                    if self.deck_compare {
+                        "Cards"
+                    } else {
+                        "Waveforms"
+                    },
+                    vec2(96.0, 48.0),
+                    false,
+                );
+                self.hit("Deck compare", compare.rect);
+                if compare.clicked() {
+                    self.deck_compare = !self.deck_compare;
+                    self.save_players();
+                }
+                let pair = theme::button(
+                    ui,
+                    &format!("Pair {} + {}…", self.deck_pair[0], self.deck_pair[1]),
+                    vec2(112.0, 48.0),
+                    false,
+                );
+                self.hit("Deck pair", pair.rect);
+                if pair.clicked() {
+                    self.deck_picker = Some(self.deck_pair);
+                }
+            }
+            let matches = theme::button(ui, "Match…", vec2(106.0, 48.0), false);
+            self.hit("Match a player", matches.rect);
+            if matches.clicked() {
+                self.open_matches();
+            }
+        });
     }
 
     fn deck_snapshot(&mut self, number: u8) -> DeckSnapshot {
@@ -308,13 +254,13 @@ impl App {
             ..
         } = self.deck_snapshot(number);
         let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        painter.rect_filled(rect, 10, PANEL);
+        painter.rect_filled(rect, 0, PANEL);
         let border = if live && player.as_ref().is_some_and(|p| p.on_air) {
             GREEN
         } else {
             LINE
         };
-        painter.rect_stroke(rect, 10, Stroke::new(1.0, border), StrokeKind::Inside);
+        painter.rect_stroke(rect, 0, Stroke::new(1.0, border), StrokeKind::Inside);
         let inside = rect.shrink(12.0);
         theme::text(
             &painter,
@@ -662,7 +608,7 @@ fn paint_overview(
     shade_played: bool,
 ) {
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
-    p.rect_filled(rect, 4, BG);
+    p.rect_filled(rect, 0, BG);
     let rect = phrase_ui::strip(&p, rect, assets, 0.0..assets.duration, position);
     let use_bands = style.uses_bands(!assets.band_overview.is_empty());
     if assets.overview.is_empty() && !use_bands {

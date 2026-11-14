@@ -364,8 +364,9 @@ fn resizing_shows_four_cards_without_losing_the_pair_or_expanding_waveforms() {
     for (size, expected) in [
         (vec2(800.0, 480.0), 2),
         (vec2(1024.0, 600.0), 2),
-        (vec2(800.0, 797.0), 2),
-        (vec2(800.0, 798.0), 4),
+        // Moving the view controls into the app header frees another 56 points.
+        (vec2(800.0, 741.0), 2),
+        (vec2(800.0, 742.0), 4),
         (vec2(1280.0, 800.0), 4),
         (vec2(800.0, 1000.0), 4),
         (vec2(1920.0, 1080.0), 4),

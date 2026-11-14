@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use eframe::egui::{self, *};
 
-pub const BG: Color32 = Color32::from_rgb(16, 19, 23);
-pub const PANEL: Color32 = Color32::from_rgb(23, 27, 32);
-pub const CARD: Color32 = Color32::from_rgb(30, 35, 41);
-pub const LINE: Color32 = Color32::from_rgb(43, 49, 56);
-pub const TEXT: Color32 = Color32::from_rgb(235, 238, 241);
-pub const MUTED: Color32 = Color32::from_rgb(147, 157, 168);
+pub const BG: Color32 = Color32::from_rgb(4, 5, 7);
+pub const PANEL: Color32 = Color32::from_rgb(24, 25, 28);
+pub const CARD: Color32 = Color32::from_rgb(39, 41, 45);
+pub const LINE: Color32 = Color32::from_rgb(64, 67, 73);
+pub const TEXT: Color32 = Color32::from_rgb(245, 246, 248);
+pub const MUTED: Color32 = Color32::from_rgb(166, 171, 180);
+pub const BLUE: Color32 = Color32::from_rgb(0, 139, 232);
+pub const CYAN: Color32 = Color32::from_rgb(57, 178, 255);
+pub const ROW_SELECTED: Color32 = Color32::from_rgb(76, 78, 91);
+pub const ON_AIR: Color32 = Color32::from_rgb(212, 24, 35);
 pub const ORANGE: Color32 = Color32::from_rgb(255, 139, 65);
-pub const SELECTED: Color32 = Color32::from_rgb(59, 39, 29);
+pub const SELECTED: Color32 = Color32::from_rgb(15, 48, 76);
 pub const GREEN: Color32 = Color32::from_rgb(118, 216, 164);
 
 pub fn configure(ctx: &Context, scale: f32) {
@@ -31,13 +35,16 @@ pub fn configure(ctx: &Context, scale: f32) {
     style.visuals.override_text_color = Some(TEXT);
     style.visuals.extreme_bg_color = BG;
     style.visuals.selection.bg_fill = SELECTED;
-    style.visuals.selection.stroke = Stroke::new(1.0, ORANGE);
+    style.visuals.selection.stroke = Stroke::new(1.0, CYAN);
     style.visuals.widgets.inactive.weak_bg_fill = CARD;
     style.visuals.widgets.inactive.bg_fill = CARD;
-    style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, LINE);
     style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(49, 54, 61);
     style.visuals.widgets.active.weak_bg_fill = SELECTED;
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, ORANGE);
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, CYAN);
+    style.visuals.widgets.inactive.corner_radius = CornerRadius::same(2);
+    style.visuals.widgets.hovered.corner_radius = CornerRadius::same(2);
+    style.visuals.widgets.active.corner_radius = CornerRadius::same(2);
     style.spacing.item_spacing = vec2(8.0, 8.0);
     style.spacing.button_padding = vec2(14.0, 10.0);
     style.spacing.interact_size = vec2(48.0, 48.0);
@@ -61,18 +68,19 @@ pub fn configure(ctx: &Context, scale: f32) {
 pub fn button(ui: &mut Ui, label: &str, size: Vec2, active: bool) -> Response {
     ui.add_sized(
         size,
-        Button::new(RichText::new(label).color(if active { ORANGE } else { TEXT }))
+        Button::new(RichText::new(label).color(if active { CYAN } else { TEXT }))
             .fill(if active { SELECTED } else { CARD })
-            .corner_radius(8),
+            .stroke(Stroke::new(1.0, if active { BLUE } else { LINE }))
+            .corner_radius(2),
     )
 }
 
 pub fn primary(ui: &mut Ui, label: &str, size: Vec2) -> Response {
     ui.add_sized(
         size,
-        Button::new(RichText::new(label).color(BG).strong())
-            .fill(ORANGE)
-            .corner_radius(8),
+        Button::new(RichText::new(label).color(TEXT).strong())
+            .fill(BLUE)
+            .corner_radius(2),
     )
 }
 

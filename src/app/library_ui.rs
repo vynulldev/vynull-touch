@@ -145,7 +145,7 @@ impl App {
                 vec2(124.0, 48.0),
                 Button::new(RichText::new(self.order.label()).size(14.0))
                     .fill(CARD)
-                    .corner_radius(8),
+                    .corner_radius(2),
             );
             self.hit("Library sort", sort.rect);
             if sort.clicked() {

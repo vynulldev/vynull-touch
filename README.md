@@ -11,6 +11,12 @@ browse the library, prepare tracks, and monitor and load the decks. It is built 
 an **800×480 landscape display** and adapts to 1024×600 and larger windows. See the
 [roadmap](ROADMAP.md) for what's next.
 
+**XDJ-AZ experiment (`feat/xdj-az-interface`):** this branch tries browse and
+playback layouts inspired by the XDJ-AZ interface: a black-and-blue theme, live
+deck summaries beneath the track lists, larger time and BPM readouts under the
+waveforms, and player controls in the app toolbar. The screenshots below show
+this branch's current UI.
+
 ![Collection at 800×480](docs/collection-800x480.png)
 
 ![Players at 800×480](docs/players-800x480.png)
@@ -73,8 +79,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
   range, key, genre, rating, color and tags. Sorting is remembered across restarts.
 - **Match highlighting:** Key and BPM cells turn green when they fit the master
   deck or a player you choose in the toolbar's **Match** button. **Key rules…**
-  sets which Camelot neighbours count (relative A/B, +1, −1); the BPM range is ±6%
-  by default, with ±3%, ±10% and half/double time.
+  sets which Camelot neighbours count (relative A/B, +1, −1); the BPM range is ±3%
+  by default, with ±6%, ±10% and half/double time.
 - **On-deck badges:** P1–P4 under a track's title when it's loaded on a player:
   green while playing, orange outlines when cued or paused.
 - **Prepare:** a shortlist kept in a shared Vynull playlist. Add tracks from
@@ -228,10 +234,10 @@ VYNULL_AUDIO_TEST_ORIGIN=http://127.0.0.1:9443 VYNULL_AUDIO_TEST_TRACK=123 \
 
 `python3 scripts/capture.py` captures native screenshots of the demo on a private
 Xvfb display (it needs Xvfb, libXtst, xwininfo, xclip and ImageMagick; the audio
-captures also need PulseAudio), and `--help` lists a capture for each feature.
-Screenshots go to a new temporary folder unless you pass `--output-dir`; the
-script never touches real players or a real library. Only the images linked here
-belong in `docs/`.
+captures also need PulseAudio). `--readme-only` recreates this README's images,
+and `--help` lists a capture for each feature. Screenshots go to a new temporary
+folder unless you pass `--output-dir`; the script never touches real players or
+a real library. Only the images linked here belong in `docs/`.
 
 Library requests, player status, artwork, deck analysis, preview audio, logs and
 recording each run on their own bounded worker, so a slow request never stalls

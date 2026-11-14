@@ -63,7 +63,7 @@ impl App {
                     ("Time", Some(Sort::Duration)),
                 ]) {
                     let active = field == Some(self.order.field);
-                    let color = if active { ORANGE } else { MUTED };
+                    let color = if active { CYAN } else { MUTED };
                     let mut text = cell.shrink2(vec2(8.0, 0.0));
                     if active {
                         text.max.x -= 12.0;
@@ -79,7 +79,7 @@ impl App {
                             Stroke::NONE,
                         ));
                     }
-                    theme::text(ui.painter(), text, label, 13.0, color);
+                    theme::text(ui.painter(), text, label, 14.0, color);
                     ui.painter()
                         .vline(cell.right(), cell.y_range(), Stroke::new(1.0, BG));
                     if let Some(field) = field {
@@ -126,7 +126,7 @@ impl App {
                             rect,
                             0,
                             if selected {
-                                Color32::from_rgb(91, 49, 26)
+                                ROW_SELECTED
                             } else if row % 2 == 0 {
                                 PANEL
                             } else {
@@ -137,7 +137,7 @@ impl App {
                             ui.painter().rect_filled(
                                 Rect::from_min_size(rect.min, vec2(3.0, rect.height())),
                                 0,
-                                ORANGE,
+                                BLUE,
                             );
                         }
                         let cells = columns.rects(rect);
