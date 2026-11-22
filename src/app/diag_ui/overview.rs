@@ -220,7 +220,7 @@ impl App {
         ui.ctx().request_repaint_after(Duration::from_secs(1));
     }
 
-    pub(super) fn diagnostic_report(&self) -> String {
+    pub(in crate::app) fn diagnostic_report(&self) -> String {
         let mut text = String::from("Vynull Touch diagnostic report\n\n");
         for section in self.diagnostic_sections() {
             text.push_str(section.title);
@@ -231,6 +231,8 @@ impl App {
             }
             text.push('\n');
         }
+        text.push_str(&self.network_report());
+        text.push('\n');
         if let Some(info) = &self.diagnostics.version.info {
             text.push_str(&format!(
                 "Daemon commit: {}\nDaemon build date: {}\n",

@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--readme-only', action='store_true', help='Recreate the 13 README showcase images using fictional demo tracks and private test audio')
     parser.add_argument('--xdj-az-only', action='store_true', help='Capture the experimental XDJ-AZ browser, deck dock and player layouts')
     parser.add_argument('--themes-only', action='store_true', help='Exercise the saved Classic and XDJ-AZ themes at touch display sizes')
+    parser.add_argument('--network-only', action='store_true', help='Capture the mixer indicator and network device list with fictional peers')
     parser.add_argument('--recording-only', action='store_true', help='Exercise recording using a private silent stereo test source and capture the Record page')
     parser.add_argument('--connection-only', action='store_true', help='Capture only the offline recovery screen')
     parser.add_argument('--grid-editor-only', action='store_true', help='Capture the beat-grid editor using fictional demo tracks')
@@ -79,6 +80,9 @@ def main():
                 return
             if args.themes_only:
                 capture_interactions(env, output_dir, themes_only=True)
+                return
+            if args.network_only:
+                capture_interactions(env, output_dir, network_only=True)
                 return
             if args.readme_only:
                 with preview_output(env) as audio_env:
@@ -220,7 +224,7 @@ def capture_styles(env, output_dir):
         subprocess.run([str(ROOT / 'target/debug/vynull-touch'), '--demo', '--startup-page', 'players', '--screenshot', str(output_dir / f'waveform-style-{style}-800x480.png')], env=env, check=True, timeout=30)
 
 
-def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, readme_only=False, xdj_az_only=False, recording_only=False, server_origin=None, themes_only=False):
+def capture_interactions(env, output_dir, inspect_waveform=None, library_only=False, load_only=False, beat_jump_only=False, search_only=False, cue_markers_only=False, cue_editor_only=False, inspect_grid_only=False, waveform_curves_only=False, player_phrases_only=False, tag_picker_only=False, tag_manager_only=False, playlist_icons_only=False, audio_settings_only=False, grid_editor_only=False, device_settings_only=False, browser_settings_only=False, cue_defaults_only=False, prepare_only=False, library_preview_only=False, library_match_only=False, on_deck_only=False, key_matching_only=False, readme_only=False, xdj_az_only=False, recording_only=False, server_origin=None, network_only=False, themes_only=False):
     # Keep the established Cards walkthrough, then capture Waveforms separately.
     settings = Path(env['XDG_CONFIG_HOME']) / 'vynull-touch' / 'settings.json'
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -231,7 +235,7 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
         settings.write_text('{}')
         env = dict(env, HOME=str(output_dir / 'home'))
         recordings = output_dir / 'home' / 'Music' / 'Vynull Recordings'
-    if xdj_az_only or themes_only:
+    if xdj_az_only or network_only or themes_only:
         settings.write_text('{"players":{"compare":true}}')
     if library_preview_only or readme_only:
         settings.write_text(json.dumps({'players': {'compare': False}, 'audio_volume': 0.0}))
@@ -342,6 +346,22 @@ def capture_interactions(env, output_dir, inspect_waveform=None, library_only=Fa
                 theme_sizes(f'theme-{theme}-cards')
                 click(616 if theme == 'classic' else 148, 92 if theme == 'classic' else 26)
                 assert json.loads(settings.read_text())['players']['compare']
+            return
+
+        if network_only:
+            for width, height in [(800, 480), (1024, 600), (1280, 800)]:
+                xlib.XResizeWindow(display, int(window, 16), width, height)
+                xlib.XFlush(display)
+                time.sleep(.3)
+                click(44, 98)
+                subprocess.run(['import', '-window', window, str(output_dir / f'network-players-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(width - (149 if width < 960 else 179), 26)
+                subprocess.run(['import', '-window', window, str(output_dir / f'network-devices-{width}x{height}.png')], env=env, check=True, timeout=10)
+                click(width - 100, 92)
+                report = subprocess.check_output(['xclip', '-o', '-selection', 'clipboard'], env=env, text=True, timeout=5)
+                assert 'NETWORK DEVICES' in report and 'DJM-A9' in report and 'CH1: unknown' in report
+                click(352, 92)
+                subprocess.run(['import', '-window', window, str(output_dir / f'network-logs-{width}x{height}.png')], env=env, check=True, timeout=10)
             return
 
         if recording_only:

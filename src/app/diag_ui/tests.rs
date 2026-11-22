@@ -16,7 +16,7 @@ fn overview_copies_versions_errors_and_cached_logs_and_preserves_log_pause() {
         );
         click(&mut app, &ctx, size, "Setup");
         click(&mut app, &ctx, size, "Diag");
-        assert!(!app.diagnostics.showing_logs);
+        assert_eq!(app.diagnostics.tab, Tab::Status);
         assert!(
             app.diagnostics.logs.updated.is_none(),
             "overview must not fetch logs"

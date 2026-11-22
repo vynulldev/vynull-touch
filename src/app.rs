@@ -32,6 +32,7 @@ mod loop_ui;
 mod match_ui;
 #[cfg(test)]
 mod navigation_tests;
+mod network_ui;
 mod on_deck;
 #[cfg(test)]
 mod phrase_tests;
@@ -856,7 +857,9 @@ impl App {
                                 ORANGE
                             }));
                         self.hit("Connection status", status.rect);
-                        if self.fresh() {
+                        if self.page == Page::Players {
+                            self.network_indicator(ui);
+                        } else if self.fresh() {
                             let players = ui.label(
                                 RichText::new(format!("{} players", self.status.players.len()))
                                     .size(13.0)

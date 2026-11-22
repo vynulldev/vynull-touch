@@ -50,7 +50,7 @@ fn live_reference_requires_a_unique_connected_loaded_deck() {
     });
     assert!(Reference::Master.player(&status, true).is_none());
     status.players.pop();
-    status.peers.pop();
+    status.peers.retain(|peer| peer.device_number != 2);
     assert!(Reference::Master.player(&status, true).is_none());
     assert!(Reference::Player(2).player(&status, true).is_none());
 }

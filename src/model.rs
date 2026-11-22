@@ -76,6 +76,11 @@ pub struct Peer {
 }
 
 impl Peer {
+    pub fn is_mixer(&self) -> bool {
+        self.device_type.eq_ignore_ascii_case("mixer")
+            || self.device_type.eq_ignore_ascii_case("djm")
+    }
+
     pub fn same_device(&self, other: &Self) -> bool {
         self.device_number == other.device_number
             && self.name == other.name
@@ -88,6 +93,7 @@ impl Peer {
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Mixer {
     pub channel_state_known: bool,
+    #[serde(deserialize_with = "null_vec")]
     pub channel_on_air: Vec<bool>,
 }
 
