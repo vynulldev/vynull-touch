@@ -1,6 +1,6 @@
 # Vynull Touch Roadmap
 
-Updated November 13, 2026
+Updated November 21, 2026
 
 Vynull Touch is a touchscreen companion for Vynull: browse the library, prepare
 tracks, and monitor and load the decks. It is built for 800×480 first; larger
@@ -9,7 +9,7 @@ dates.
 
 ## Where things stand
 
-Everything below is built. The latest build passed 283 tests (the opt-in
+Everything below is built. The latest build passed 290 tests (the opt-in
 hardware-audio test skipped) and Clippy. What's missing across the board is
 validation on the physical touchscreen and with live CDJs; see Next steps.
 
@@ -25,12 +25,15 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
   reordering, removal and loading.
 - Match a player: tracks that fit a deck's pitched tempo and key.
 - Rating, color and tag edits; playlist, folder, tag and category management.
+- The selected deck pair stays in view beneath Collection, Playlists and
+  Prepare.
 
 **Inspect**
 
 - Overview and detailed waveforms with the beat grid, phrase strips, remembered
   zoom and smooth curves at high zoom.
-- Local audio preview, beat jumps, a millisecond cursor readout and Quantize.
+- Local audio preview, beat jumps, a cursor readout in bars and beats and to
+  the millisecond, and Quantize.
 - Hot cues A–H in rekordbox's 16 cue colors with per-pad defaults, cue editing
   and saved loops.
 - Beat-grid editing (nudges, beat 1, a BPM keypad) with an Analysis lock, and
@@ -44,13 +47,16 @@ validation on the physical touchscreen and with live CDJs; see Next steps.
   section, and bars/beats countdowns to the next phrase and the next cue.
 - Loading with session and source checks, and confirmation before replacing a
   playing track.
+- A mixer indicator beside the player count that opens the network device list.
 
 **Settings and diagnostics**
 
 - Saved server, startup page and waveform style; preview audio output and volume.
+- Classic and XDJ-AZ themes, switched at once and remembered.
 - CDJ & mixer: Vynull's shared hardware profile (46 fields) and the CDJ menu's
   categories, sort menu and track-detail column.
-- Diagnostics: status, versions, request errors, logs and a copyable report.
+- Diagnostics: status, versions, request errors, logs, the discovered network
+  devices with a mixer's on-air channels, and a copyable report.
 
 **Record**
 
@@ -63,12 +69,12 @@ atomically, keeps the previous build for rollback and can restart the open UI.
 
 ## Next steps
 
-1. Walk through the features on the physical touchscreen: navigation
-   and Back, Prepare with two clients, the editors, the settings pages and grid
-   editing with Undo/Redo.
-2. Check them against live CDJs: playhead smoothness, countdowns, badges, match
-   highlighting, the CDJ menu after browser changes, and hardware settings
-   writes.
+1. Walk through the features on the physical touchscreen in both themes:
+   navigation and Back, Prepare with two clients, the editors, the settings
+   pages and grid editing with Undo/Redo.
+2. Check them against live CDJs and a mixer: playhead smoothness, countdowns,
+   badges, match highlighting, the CDJ menu after browser changes, hardware
+   settings writes, and the mixer's on-air channels.
 3. Measure performance on the Pi and set budgets from it.
 4. Add recently played history, and document the desktop shortcut and
    autostart setup.
@@ -122,6 +128,8 @@ installed UI usable.
 
 - [x] Waveforms layout with stacked scrolling waveforms, and saved waveform
   styles (Auto, RGB, 3-band, Blue).
+- [x] Network devices in Diagnostics and a mixer indicator on Players; an
+  unknown on-air state is never shown as off air.
 - [ ] Readable timing state: source, estimated position, stale status, missing
   analysis and disconnected players. CUED and paused waveforms are done.
 - [ ] Diagnostics log search and analysis availability. Status and the report
