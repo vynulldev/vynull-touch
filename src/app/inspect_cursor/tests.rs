@@ -60,7 +60,7 @@ fn cursor_beat_stays_on_downbeat_after_audio_frame_rounding_and_cue_recall() {
     app.inspect_quantize = true;
     let target = app.inspect_seek_position(41.0, 284.0);
     app.position = target;
-    assert!(app.inspect_cursor_label().starts_with("Beat 5 (1/4)"));
+    assert!(app.inspect_cursor_label().starts_with("2.1 Bars"));
     for rate in [8_000, 44_100, 48_000, 96_000, 192_000] {
         app.preview.seek(target, false);
         // The audio engine reports complete frames, flooring fractional frames.
@@ -78,7 +78,7 @@ fn cursor_beat_stays_on_downbeat_after_audio_frame_rounding_and_cue_recall() {
                 .unwrap();
             frame(&mut app, &ctx, size, vec![]);
             assert!(
-                app.inspect_cursor_label().starts_with("Beat 5 (1/4)"),
+                app.inspect_cursor_label().starts_with("2.1 Bars"),
                 "{rate} Hz, {phase:?}: {}",
                 app.inspect_cursor_label()
             );
@@ -92,16 +92,40 @@ fn cursor_beat_stays_on_downbeat_after_audio_frame_rounding_and_cue_recall() {
     app.detail.as_mut().unwrap().cues[0].time_ms = 41_000;
     click(&mut app, &ctx, size, "Cue 1");
     assert_eq!(requests.borrow().seconds, 41.0);
-    assert!(app.inspect_cursor_label().starts_with("Beat 5 (1/4)"));
+    assert!(app.inspect_cursor_label().starts_with("2.1 Bars"));
     click(&mut app, &ctx, size, "Beat jump forward");
-    assert!(app.inspect_cursor_label().starts_with("Beat 9 (1/4)"));
+    assert!(app.inspect_cursor_label().starts_with("3.1 Bars"));
     click(&mut app, &ctx, size, "Beat jump back");
-    assert!(app.inspect_cursor_label().starts_with("Beat 5 (1/4)"));
+    assert!(app.inspect_cursor_label().starts_with("2.1 Bars"));
     app.position = target - 0.002;
     assert!(
-        app.inspect_cursor_label().starts_with("Beat 4 (4/4)"),
+        app.inspect_cursor_label().starts_with("1.4 Bars"),
         "a position genuinely before the downbeat must retain the previous beat"
     );
+
+    // A saved grid can start before the audio and in the middle of a bar.
+    app.detail.as_mut().unwrap().beat_grid = BeatGrid::new(
+        TrackAnalysis {
+            track_id: 1,
+            beats: [(-125.0, 3), (400.25, 4), (990.5, 1), (1510.0, 2)]
+                .map(|(time_ms, beat_in_bar)| Beat {
+                    time_ms,
+                    beat_in_bar,
+                })
+                .to_vec(),
+        },
+        1,
+    )
+    .unwrap();
+    for (position, label) in [
+        (0.0, "1.3 Bars · 0:00.000"),
+        (0.4, "1.4 Bars · 0:00.400"),
+        (0.99, "2.1 Bars · 0:00.990"),
+        (1.6, "2.2 Bars · 0:01.600"),
+    ] {
+        app.position = position;
+        assert_eq!(app.inspect_cursor_label(), label);
+    }
 }
 
 #[test]
@@ -201,7 +225,7 @@ fn cursor_readout_is_precise_clipped_and_available_without_waveform_or_grid() {
         app.inspect(app.tracks[0].clone());
         app.show_grid = false;
         app.position = 32.125;
-        assert_eq!(app.inspect_cursor_label(), "Beat 65 (1/4) · 0:32.125");
+        assert_eq!(app.inspect_cursor_label(), "17.1 Bars · 0:32.125");
         app.position = 59.9996;
         assert!(app.inspect_cursor_label().ends_with("1:00.000"));
         for position in [0.0, 32.125, f64::from(app.tracks[0].duration)] {
