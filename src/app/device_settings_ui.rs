@@ -123,6 +123,7 @@ impl App {
     }
 
     pub(super) fn device_settings_view(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal(|ui| {
             let back = theme::button(ui, "‹ Settings", vec2(126.0, 48.0), false);
             self.hit("Device settings back", back.rect);
@@ -135,7 +136,7 @@ impl App {
                 ui.label(
                     RichText::new("Shared hardware profile on Vynull")
                         .size(12.0)
-                        .color(MUTED),
+                        .color(colors.muted),
                 )
                 .on_hover_text(
                     "Available features and when settings take effect depend on your hardware.",
@@ -240,7 +241,7 @@ impl App {
                                 .as_ref()
                                 .is_some_and(|s| s.full[section][&field] != value);
                             Frame::new()
-                                .fill(PANEL)
+                                .fill(colors.panel)
                                 .inner_margin(Margin::symmetric(10, 4))
                                 .corner_radius(6)
                                 .show(ui, |ui| {
@@ -261,7 +262,11 @@ impl App {
                                                             label(&field),
                                                             if changed { " *" } else { "" }
                                                         ))
-                                                        .color(if changed { ORANGE } else { TEXT }),
+                                                        .color(if changed {
+                                                            ORANGE
+                                                        } else {
+                                                            colors.text
+                                                        }),
                                                     )
                                                     .halign(Align::Min)
                                                     .truncate(),
@@ -306,7 +311,7 @@ impl App {
                     if self.device_settings.reload {
                         ORANGE
                     } else {
-                        MUTED
+                        colors.muted
                     },
                 ))
                 .truncate(),
@@ -365,6 +370,7 @@ impl App {
     }
 
     pub(super) fn device_setting_picker(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some((section, field)) = self.device_settings.picker.clone() else {
             return;
         };
@@ -386,7 +392,7 @@ impl App {
             ui.label(
                 RichText::new("Choose a value · Save applies your changes")
                     .size(13.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ScrollArea::vertical()
                 .id_salt(("device-choices", &section, &field))

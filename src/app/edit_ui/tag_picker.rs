@@ -27,6 +27,7 @@ impl App {
         manager: &mut Manager,
         request: &mut Option<Request>,
     ) {
+        let colors = crate::theme::palette(ui.ctx());
         let Some(draft) = &mut manager.track else {
             return;
         };
@@ -35,7 +36,7 @@ impl App {
             .exact_size(48.0)
             .resizable(false)
             .show_separator_line(false)
-            .frame(Frame::new().fill(PANEL))
+            .frame(Frame::new().fill(colors.panel))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_enabled_ui(!draft.changed(), |ui| {
@@ -76,7 +77,11 @@ impl App {
                         if draft.changed() { " · Unsaved" } else { "" }
                     ))
                     .size(14.0)
-                    .color(if draft.changed() { ORANGE } else { MUTED }),
+                    .color(if draft.changed() {
+                        ORANGE
+                    } else {
+                        colors.muted
+                    }),
                 );
             });
         });
@@ -207,7 +212,7 @@ impl App {
                             } else {
                                 "No tags in this category."
                             })
-                            .color(MUTED),
+                            .color(colors.muted),
                         );
                         return;
                     }

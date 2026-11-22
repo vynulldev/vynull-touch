@@ -86,6 +86,7 @@ impl App {
     }
 
     pub(super) fn recording_view(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let state = self.recorder.controller.state.clone();
         let busy = self.recorder.controller.busy();
         ScrollArea::vertical()
@@ -98,14 +99,14 @@ impl App {
                             RichText::new(state.elapsed())
                                 .monospace()
                                 .size(27.0)
-                                .color(if state.recording { RED } else { TEXT }),
+                                .color(if state.recording { RED } else { colors.text }),
                         );
                     });
                 });
                 ui.label(
                     RichText::new("Record the audio input on this device.")
                         .size(13.0)
-                        .color(MUTED),
+                        .color(colors.muted),
                 );
                 ui.add_space(4.0);
                 ui.add_enabled_ui(!state.active && !busy, |ui| {
@@ -252,7 +253,7 @@ impl App {
                 } else {
                     "Stereo WAV · numbered 1 GB parts for long sessions".into()
                 };
-                ui.add(Label::new(RichText::new(info).size(12.0).color(MUTED)).truncate());
+                ui.add(Label::new(RichText::new(info).size(12.0).color(colors.muted)).truncate());
                 if let Some(path) = state.paths.last() {
                     let prefix = if state.recording {
                         "Writing"
@@ -399,6 +400,7 @@ impl App {
     }
 
     fn recording_format_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         Modal::new(Id::unique("recording-format")).show(ctx, |ui| {
             ui.set_width((ctx.content_rect().width() - 64.0).min(600.0));
             ui.heading("Recording format");
@@ -451,7 +453,7 @@ impl App {
                     "Auto prefers 48 kHz. Higher rates and bit depths use more disk space.",
                 )
                 .size(12.0)
-                .color(MUTED),
+                .color(colors.muted),
             );
             if !self.recorder.error.is_empty() {
                 ui.colored_label(RED, &self.recorder.error);
@@ -466,6 +468,7 @@ impl App {
 }
 
 fn meters(ui: &mut Ui, state: &recording::State) -> Response {
+    let colors = crate::theme::palette(ui.ctx());
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 78.0), Sense::click());
     let p = ui.painter();
     let left = rect.left() + 25.0;
@@ -477,7 +480,7 @@ fn meters(ui: &mut Ui, state: &recording::State) -> Response {
             Align2::CENTER_TOP,
             db.to_string(),
             FontId::proportional(10.0),
-            MUTED,
+            colors.muted,
         );
     }
     for (c, label) in ["L", "R"].into_iter().enumerate() {
@@ -487,10 +490,10 @@ fn meters(ui: &mut Ui, state: &recording::State) -> Response {
             Align2::LEFT_CENTER,
             label,
             FontId::proportional(14.0),
-            TEXT,
+            colors.text,
         );
         let bar = Rect::from_min_max(pos2(left, y), pos2(right, y + 14.0));
-        p.rect_filled(bar, 1, CARD);
+        p.rect_filled(bar, 1, colors.card);
         let peak = recording::db(state.peak[c]);
         for (lo, hi, color) in [
             (-60.0, -12.0, GREEN),
@@ -512,7 +515,7 @@ fn meters(ui: &mut Ui, state: &recording::State) -> Response {
             GREEN,
         );
         if state.peak[c] > 0.000_001 {
-            p.vline(x(peak), y..=y + 14.0, Stroke::new(2.0, TEXT));
+            p.vline(x(peak), y..=y + 14.0, Stroke::new(2.0, colors.text));
         }
         let text = if state.clipped[c] {
             "CLIP".into()
@@ -526,7 +529,7 @@ fn meters(ui: &mut Ui, state: &recording::State) -> Response {
             Align2::RIGHT_CENTER,
             text,
             FontId::proportional(12.0),
-            if state.clipped[c] { RED } else { MUTED },
+            if state.clipped[c] { RED } else { colors.muted },
         );
     }
     response.on_hover_text("Peak and RMS input levels. CLIP stays lit until you tap the meters. Adjust input gain on your mixer or sound card.")

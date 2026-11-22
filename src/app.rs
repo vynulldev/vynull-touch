@@ -39,6 +39,7 @@ mod player_ui;
 mod prepare_ui;
 mod recording_ui;
 mod refresh;
+mod theme_ui;
 mod track_scroll;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,6 +62,8 @@ enum Field {
     RecordingDirectory,
 }
 pub struct App {
+    ui_theme: theme::UiTheme,
+    theme_picker: bool,
     options: Options,
     page: Page,
     inspect_origin: Option<Page>,
@@ -163,6 +166,7 @@ impl App {
     pub fn new(ctx: &Context, mut options: Options, settings_path: Option<PathBuf>) -> Self {
         theme::configure(ctx, options.scale);
         let saved = settings::load(settings_path.as_deref());
+        theme::apply(ctx, saved.theme);
         if !options.server_given
             && let Some(server) = &saved.server
         {
@@ -173,6 +177,8 @@ impl App {
         preview.request.device = saved.audio_output;
         preview.request.volume = saved.audio_volume;
         let mut app = Self {
+            ui_theme: saved.theme,
+            theme_picker: false,
             server_draft: options.server.clone(),
             options,
             page,
@@ -785,17 +791,26 @@ impl App {
     }
 
     fn header(&mut self, root: &mut Ui) {
+        let colors = crate::theme::palette(root.ctx());
         Panel::top("header")
             .exact_size(52.0)
-            .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(16, 0)))
+            .frame(
+                Frame::new()
+                    .fill(if self.ui_theme.is_xdj() {
+                        colors.bg
+                    } else {
+                        colors.panel
+                    })
+                    .inner_margin(Margin::symmetric(16, 0)),
+            )
             .show(root, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.label(RichText::new("vynull").size(29.0).color(CYAN));
+                    ui.label(RichText::new("vynull").size(29.0).color(colors.accent_text));
                     if !matches!(self.page, Page::Collection | Page::Players)
                         || ui.max_rect().width() >= 960.0
                     {
                         ui.add_space(8.0);
-                        ui.label(RichText::new("TOUCH").size(11.0).color(MUTED));
+                        ui.label(RichText::new("TOUCH").size(11.0).color(colors.muted));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let active = self.navigation_page() == Page::Settings;
@@ -812,7 +827,11 @@ impl App {
                             ui.painter(),
                             settings.rect.center(),
                             3,
-                            if active { CYAN } else { MUTED },
+                            if active {
+                                colors.accent_text
+                            } else {
+                                colors.muted
+                            },
                         );
                         self.hit("Setup", settings.rect);
                         if settings.clicked() {
@@ -841,7 +860,7 @@ impl App {
                             let players = ui.label(
                                 RichText::new(format!("{} players", self.status.players.len()))
                                     .size(13.0)
-                                    .color(MUTED),
+                                    .color(colors.muted),
                             );
                             self.hit("Player count", players.rect);
                         }
@@ -872,12 +891,13 @@ impl App {
     }
 
     fn navigation(&mut self, root: &mut Ui) {
+        let colors = crate::theme::palette(root.ctx());
         Panel::left("navigation")
             .exact_size(88.0)
             .resizable(false)
             .frame(
                 Frame::new()
-                    .fill(PANEL)
+                    .fill(colors.panel)
                     .inner_margin(Margin::symmetric(6, 12)),
             )
             .show(root, |ui| {
@@ -898,12 +918,36 @@ impl App {
                         let (rect, response) =
                             ui.allocate_exact_size(vec2(76.0, height), Sense::click());
                         if active || response.hovered() {
-                            ui.painter()
-                                .rect_filled(rect, 0, if active { BLUE } else { CARD });
+                            ui.painter().rect_filled(
+                                rect,
+                                if self.ui_theme.is_xdj() { 0 } else { 8 },
+                                if active {
+                                    if self.ui_theme.is_xdj() {
+                                        colors.accent
+                                    } else {
+                                        colors.selected
+                                    }
+                                } else {
+                                    colors.card
+                                },
+                            );
                         }
-                        ui.painter()
-                            .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, LINE));
-                        let color = if active { TEXT } else { MUTED };
+                        if self.ui_theme.is_xdj() {
+                            ui.painter().hline(
+                                rect.x_range(),
+                                rect.bottom(),
+                                Stroke::new(1.0, colors.line),
+                            );
+                        }
+                        let color = if active {
+                            if self.ui_theme.is_xdj() {
+                                colors.text
+                            } else {
+                                ORANGE
+                            }
+                        } else {
+                            colors.muted
+                        };
                         theme::icon(
                             ui.painter(),
                             rect.center_top() + vec2(0.0, height * 0.34),
@@ -928,6 +972,7 @@ impl App {
     }
 
     pub fn render(&mut self, root: &mut Ui) {
+        let colors = crate::theme::palette(root.ctx());
         let ctx = root.ctx().clone();
         let popup_open = Popup::is_any_open(&ctx);
         self.poll(&ctx);
@@ -990,7 +1035,7 @@ impl App {
             .exact_size(26.0)
             .frame(
                 Frame::new()
-                    .fill(PANEL)
+                    .fill(colors.panel)
                     .inner_margin(Margin::symmetric(12, 3)),
             )
             .show(root, |ui| {
@@ -1024,7 +1069,7 @@ impl App {
                 let (message, color) = if let Some((recording, color)) = self.recording_status() {
                     (format!("{recording}   {message}"), color)
                 } else {
-                    (message, MUTED)
+                    (message, colors.muted)
                 };
                 ui.add(Label::new(RichText::new(&message).size(12.0).color(color)).truncate())
                     .on_hover_text(message);
@@ -1035,7 +1080,7 @@ impl App {
             self.navigation(root);
         }
         CentralPanel::default()
-            .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(
+            .frame(Frame::new().fill(colors.bg).inner_margin(Margin::symmetric(
                 16,
                 if matches!(self.page, Page::Detail | Page::Record)
                     || (self.keyboard.is_none()
@@ -1128,7 +1173,12 @@ impl App {
         if choosing_prepare {
             self.prepare_picker(&ctx);
         }
+        let choosing_theme = self.page == Page::Settings && self.theme_picker;
+        if choosing_theme {
+            self.theme_modal(&ctx);
+        }
         if !editing
+            && !choosing_theme
             && !choosing_library_match
             && !choosing_key_matching
             && !choosing_prepare
@@ -1181,6 +1231,7 @@ impl App {
             self.cue_press = None;
         }
         if self.page != Page::Settings {
+            self.theme_picker = false;
             self.audio_dialog = false;
             self.cue_defaults = None;
         }
@@ -1195,6 +1246,7 @@ impl App {
     }
 
     fn collection(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let searching = self.keyboard == Some(Field::Search);
         if searching {
             ui.label(
@@ -1203,7 +1255,7 @@ impl App {
                     self.visible.len()
                 ))
                 .size(13.0)
-                .color(MUTED),
+                .color(colors.muted),
             );
         } else {
             self.filter_summary(ui);
@@ -1237,7 +1289,7 @@ impl App {
                 Rect::from_min_max(rect.min, rect.right_top() + vec2(0.0, 20.0)),
                 format!("{} · {count}", self.source_name),
                 12.0,
-                MUTED,
+                colors.muted,
             );
             theme::text(
                 ui.painter(),
@@ -1247,7 +1299,11 @@ impl App {
                     |track| format!("{} · {}", track.title, track.artist),
                 ),
                 15.0,
-                if selected.is_some() { TEXT } else { MUTED },
+                if selected.is_some() {
+                    colors.text
+                } else {
+                    colors.muted
+                },
             );
             if let Some(track) = selected {
                 self.prepare_button(ui, &track);
@@ -1281,6 +1337,7 @@ impl App {
     }
 
     fn playlists(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         self.playlist_counts.poll(&self.playlists);
         if self.folder != 0 {
             let back = theme::button(ui, "‹ Back", vec2(96.0, 48.0), false);
@@ -1323,7 +1380,7 @@ impl App {
                             ui.ctx(),
                         );
                     }
-                    ui.painter().rect_filled(rect, 8, CARD);
+                    ui.painter().rect_filled(rect, 8, colors.card);
                     theme::playlist_icon(
                         ui.painter(),
                         rect.left_center() + vec2(30.0, 0.0),
@@ -1339,7 +1396,7 @@ impl App {
                         ),
                         &playlist.name,
                         18.0,
-                        TEXT,
+                        colors.text,
                     );
                     theme::text(
                         ui.painter(),
@@ -1349,14 +1406,14 @@ impl App {
                         ),
                         self.playlist_subtitle(&playlist),
                         13.0,
-                        MUTED,
+                        colors.muted,
                     );
                     ui.painter().text(
                         rect.right_center() - vec2(18.0, 0.0),
                         Align2::CENTER_CENTER,
                         "›",
                         FontId::proportional(24.0),
-                        MUTED,
+                        colors.muted,
                     );
                     self.hit(&playlist.name, rect);
                     if response.clicked() {
@@ -1398,6 +1455,7 @@ impl App {
     }
 
     fn detail(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let Some(track) = self.detail_track.clone() else {
             self.leave_inspect();
             return;
@@ -1424,7 +1482,7 @@ impl App {
             .exact_size(48.0)
             .resizable(false)
             .show_separator_line(false)
-            .frame(Frame::new().fill(BG))
+            .frame(Frame::new().fill(colors.bg))
             .show(ui, |ui| {
                 if self.grid_editing() {
                     self.grid_actions(ui, &track);
@@ -1629,7 +1687,7 @@ impl App {
                                         ),
                                         &cue.label,
                                         11.0,
-                                        TEXT,
+                                        colors.text,
                                     );
                                 }
                                 self.hit(&format!("Cue {}", cue.number), response.rect);
@@ -1764,13 +1822,14 @@ impl App {
     }
 
     fn audio_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         Modal::new(Id::unique("audio-output")).show(ctx, |ui| {
             ui.set_width((ctx.content_rect().width() - 64.0).min(560.0));
             ui.heading("Preview output");
             ui.label(
                 RichText::new("Choose an output for local track previews.")
                     .size(14.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             let selected = self
                 .preview
@@ -1863,21 +1922,22 @@ impl App {
         label: &str,
         window: Option<std::ops::Range<f64>>,
     ) {
+        let colors = crate::theme::palette(p.ctx());
         let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
-        p.rect_filled(rect, 8, PANEL);
+        p.rect_filled(rect, 8, colors.panel);
         p.text(
             rect.left_top() + vec2(7.0, 3.0),
             Align2::LEFT_TOP,
             label,
             FontId::proportional(10.0),
-            MUTED,
+            colors.muted,
         );
         p.text(
             rect.right_top() + vec2(-7.0, 3.0),
             Align2::RIGHT_TOP,
             format!("{} – {}", time(range.start), time(range.end)),
             FontId::monospace(10.0),
-            MUTED,
+            colors.muted,
         );
         let phrase_height = self.inspect_phrase_height();
         if phrase_height > 0.0
@@ -1903,7 +1963,7 @@ impl App {
                     "Waveform unavailable"
                 },
                 FontId::proportional(13.0),
-                MUTED,
+                colors.muted,
             );
             return;
         };
@@ -1920,7 +1980,7 @@ impl App {
                 Align2::CENTER_CENTER,
                 "No waveform available",
                 FontId::proportional(13.0),
-                MUTED,
+                colors.muted,
             );
             crate::waveform::markers::hot_cues(&p, rect, range, &detail.cues, cue_edge);
             return;
@@ -2015,13 +2075,13 @@ impl App {
                 if (label_all || downbeat) && x >= label_right && x + 14.0 <= rect.right() {
                     let label_rect =
                         Rect::from_min_size(pos2(x + 2.0, rect.top()), vec2(10.0, 12.0));
-                    p.rect_filled(label_rect, 2, PANEL);
+                    p.rect_filled(label_rect, 2, colors.panel);
                     p.text(
                         label_rect.center(),
                         Align2::CENTER_CENTER,
                         beat.beat_in_bar.to_string(),
                         FontId::monospace(10.0),
-                        if downbeat { color } else { MUTED },
+                        if downbeat { color } else { colors.muted },
                     );
                     label_right = x + 24.0;
                 }
@@ -2048,13 +2108,14 @@ impl App {
     }
 
     fn keyboard(&mut self, root: &mut Ui) {
+        let colors = crate::theme::palette(root.ctx());
         let Some(field) = self.keyboard else {
             return;
         };
         let mut changed = false;
         Panel::bottom("keyboard")
             .exact_size(232.0)
-            .frame(Frame::new().fill(PANEL).inner_margin(8))
+            .frame(Frame::new().fill(colors.panel).inner_margin(8))
             .show(root, |ui| {
                 ui.spacing_mut().item_spacing = vec2(5.0, 4.0);
                 let rows = if self.symbols {

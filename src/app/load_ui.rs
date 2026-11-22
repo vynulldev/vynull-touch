@@ -86,6 +86,7 @@ impl App {
     }
 
     pub(super) fn confirm_load_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(confirmation) = self.load_confirmation.clone() else {
             return;
         };
@@ -121,7 +122,11 @@ impl App {
                 "This player is playing. Loading another track will interrupt playback."
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("CURRENT TRACK").size(11.0).color(MUTED));
+            ui.label(
+                RichText::new("CURRENT TRACK")
+                    .size(11.0)
+                    .color(colors.muted),
+            );
             ui.add(
                 Label::new(if confirmation.playing.track_title.is_empty() {
                     "Unknown track"
@@ -130,13 +135,13 @@ impl App {
                 })
                 .truncate(),
             );
-            ui.label(RichText::new("LOAD INSTEAD").size(11.0).color(MUTED));
+            ui.label(RichText::new("LOAD INSTEAD").size(11.0).color(colors.muted));
             ui.add(Label::new(RichText::new(&confirmation.track.title).color(ORANGE)).truncate());
             ui.add(
                 Label::new(
                     RichText::new(&confirmation.track.artist)
                         .size(13.0)
-                        .color(MUTED),
+                        .color(colors.muted),
                 )
                 .truncate(),
             );

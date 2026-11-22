@@ -8,6 +8,7 @@ impl App {
         manager: &mut Manager,
         request: &mut Option<Request>,
     ) {
+        let colors = crate::theme::palette(ui.ctx());
         let showing_categories = matches!(manager.view, View::Categories);
         let mut next = None;
         let mut categories = tag_widgets::category_ids(&manager.catalog);
@@ -26,7 +27,7 @@ impl App {
             .exact_size(48.0)
             .resizable(false)
             .show_separator_line(false)
-            .frame(Frame::new().fill(PANEL))
+            .frame(Frame::new().fill(colors.panel))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if showing_categories {
@@ -102,7 +103,7 @@ impl App {
             } else {
                 "Tap a tag to rename it, change its category, or delete it."
             })
-            .color(MUTED),
+            .color(colors.muted),
         );
         self.tag_search(
             ui,
@@ -142,7 +143,7 @@ impl App {
                 manager.catalog_browser.category_filter = Some(filter);
             }
             if ids.is_empty() {
-                ui.label(RichText::new("No categories match this search.").color(MUTED));
+                ui.label(RichText::new("No categories match this search.").color(colors.muted));
             } else {
                 track_scroll::show_rows(
                     ui,
@@ -289,7 +290,7 @@ impl App {
                                 } else {
                                     "No tags here yet. Tap New tag to create one."
                                 })
-                                .color(MUTED),
+                                .color(colors.muted),
                             );
                         } else {
                             track_scroll::show_rows(

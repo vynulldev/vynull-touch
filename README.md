@@ -11,11 +11,11 @@ browse the library, prepare tracks, and monitor and load the decks. It is built 
 an **800×480 landscape display** and adapts to 1024×600 and larger windows. See the
 [roadmap](ROADMAP.md) for what's next.
 
-**XDJ-AZ experiment (`feat/xdj-az-interface`):** this branch tries browse and
-playback layouts inspired by the XDJ-AZ interface: a black-and-blue theme, live
-deck summaries beneath the track lists, larger time and BPM readouts under the
-waveforms, and player controls in the app toolbar. The screenshots below show
-this branch's current UI.
+Choose **Classic** or **XDJ-AZ** in **Settings → Theme…**. The choice applies
+immediately and is remembered. Classic uses orange accents and the original
+player layout; XDJ-AZ uses blue accents and larger player readouts. Both keep
+the selected deck pair visible beneath Collection, Playlists and Prepare.
+The screenshots below show XDJ-AZ, the default on this branch.
 
 ![Collection at 800×480](docs/collection-800x480.png)
 

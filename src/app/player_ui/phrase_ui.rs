@@ -13,6 +13,7 @@ pub(super) fn strip(
     range: Range<f64>,
     position: Option<f64>,
 ) -> Rect {
+    let colors = crate::theme::palette(p.ctx());
     if assets.phrases.is_empty() || range.end <= range.start {
         return rect;
     }
@@ -21,7 +22,7 @@ pub(super) fn strip(
     if let Some(position) = position.filter(|pos| range.contains(pos)) {
         let x = strip.left()
             + ((position - range.start) / (range.end - range.start)) as f32 * strip.width();
-        p.vline(x, strip.y_range(), Stroke::new(2.0, TEXT));
+        p.vline(x, strip.y_range(), Stroke::new(2.0, colors.text));
     }
     rect.with_max_y(strip.top() - 2.0)
 }
@@ -58,13 +59,18 @@ pub(super) fn paint_summary(
     position: Option<f64>,
     size: f32,
 ) {
+    let colors = crate::theme::palette(p.ctx());
     if !assets.phrases.is_empty() {
         theme::text(
             p,
             rect,
             summary(assets, position),
             size,
-            if position.is_some() { TEXT } else { MUTED },
+            if position.is_some() {
+                colors.text
+            } else {
+                colors.muted
+            },
         );
     }
 }

@@ -105,6 +105,7 @@ impl App {
         track: &Track,
         snapshot: &Snapshot,
     ) -> Rect {
+        let colors = crate::theme::palette(ui.ctx());
         let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
         for loaded in snapshot.players(track) {
             let badge =
@@ -115,16 +116,16 @@ impl App {
             } else if matches!(loaded.state, State::Cued | State::Paused) {
                 ORANGE
             } else {
-                MUTED
+                colors.muted
             };
             painter.rect(
                 badge,
                 3,
-                if active { GREEN } else { CARD },
+                if active { GREEN } else { colors.card },
                 Stroke::new(1.0, color),
                 StrokeKind::Inside,
             );
-            let ink = if active { BG } else { color };
+            let ink = if active { colors.bg } else { color };
             theme::bold_text(
                 &painter,
                 Rect::from_min_max(badge.min + vec2(3.0, 0.0), badge.max - vec2(10.0, 0.0)),

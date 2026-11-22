@@ -26,6 +26,7 @@ impl App {
         typing: &mut bool,
         hint: &str,
     ) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal(|ui| {
             let width = ui.available_width() - if query.is_empty() { 0.0 } else { 138.0 };
             let search = ui.add_sized(
@@ -36,7 +37,7 @@ impl App {
                     format!("Search: {}", query)
                 })
                 .truncate()
-                .fill(CARD)
+                .fill(colors.card)
                 .corner_radius(8),
             );
             self.hit(&format!("Edit {hint}"), search.rect);
@@ -51,17 +52,18 @@ impl App {
 }
 
 pub(super) fn category_row(ui: &mut Ui, title: &str, count: usize, selected: bool) -> Response {
+    let colors = crate::theme::palette(ui.ctx());
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 48.0), Sense::click());
     let p = ui.painter();
     p.rect_filled(
         rect,
         6,
         if selected {
-            SELECTED
+            colors.selected
         } else if response.hovered() {
-            CARD
+            colors.card
         } else {
-            PANEL
+            colors.panel
         },
     );
     if selected {
@@ -73,14 +75,14 @@ pub(super) fn category_row(ui: &mut Ui, title: &str, count: usize, selected: boo
             .with_max_x(rect.right() - 38.0),
         title,
         15.0,
-        if selected { ORANGE } else { TEXT },
+        if selected { ORANGE } else { colors.text },
     );
     p.text(
         pos2(rect.right() - 10.0, rect.center().y),
         Align2::RIGHT_CENTER,
         count.to_string(),
         FontId::proportional(12.0),
-        MUTED,
+        colors.muted,
     );
     response.on_hover_text(title)
 }
@@ -93,10 +95,19 @@ pub(super) fn tile(
     width: f32,
     checked: Option<bool>,
 ) -> Response {
+    let colors = crate::theme::palette(ui.ctx());
     let selected = checked == Some(true);
     let (rect, response) = ui.allocate_exact_size(vec2(width, TILE_HEIGHT), Sense::click());
     let p = ui.painter();
-    p.rect_filled(rect, 8, if selected { SELECTED } else { CARD });
+    p.rect_filled(
+        rect,
+        8,
+        if selected {
+            colors.selected
+        } else {
+            colors.card
+        },
+    );
     p.rect_stroke(
         rect,
         8,
@@ -105,7 +116,7 @@ pub(super) fn tile(
             if selected || response.hovered() {
                 ORANGE
             } else {
-                LINE
+                colors.line
             },
         ),
         StrokeKind::Inside,
@@ -113,7 +124,7 @@ pub(super) fn tile(
     let check =
         Rect::from_center_size(pos2(rect.right() - 22.0, rect.center().y), vec2(22.0, 22.0));
     if checked.is_some() {
-        p.rect_filled(check, 4, if selected { ORANGE } else { PANEL });
+        p.rect_filled(check, 4, if selected { ORANGE } else { colors.panel });
     }
     if selected {
         p.line_segment(
@@ -121,17 +132,17 @@ pub(super) fn tile(
                 check.left_center() + vec2(5.0, 0.0),
                 check.center() + vec2(-1.0, 5.0),
             ],
-            Stroke::new(2.0, BG),
+            Stroke::new(2.0, colors.bg),
         );
         p.line_segment(
             [
                 check.center() + vec2(-1.0, 5.0),
                 check.right_top() + vec2(-4.0, 6.0),
             ],
-            Stroke::new(2.0, BG),
+            Stroke::new(2.0, colors.bg),
         );
     } else if checked.is_some() {
-        p.rect_stroke(check, 4, Stroke::new(1.0, LINE), StrokeKind::Inside);
+        p.rect_stroke(check, 4, Stroke::new(1.0, colors.line), StrokeKind::Inside);
     } else {
         let center = check.center();
         p.add(Shape::line(
@@ -140,7 +151,7 @@ pub(super) fn tile(
                 center + vec2(3.0, 0.0),
                 center + vec2(-3.0, 6.0),
             ],
-            Stroke::new(1.5, MUTED),
+            Stroke::new(1.5, colors.muted),
         ));
     }
     theme::text(
@@ -151,7 +162,7 @@ pub(super) fn tile(
         ),
         title,
         16.0,
-        TEXT,
+        colors.text,
     );
     theme::text(
         p,
@@ -161,7 +172,7 @@ pub(super) fn tile(
         ),
         subtitle,
         11.0,
-        MUTED,
+        colors.muted,
     );
     response.on_hover_text(format!("{title} · {subtitle}"))
 }

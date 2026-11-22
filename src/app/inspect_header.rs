@@ -3,6 +3,7 @@ use super::*;
 
 impl App {
     pub(super) fn inspect_header(&mut self, ui: &mut Ui, track: &Track) {
+        let colors = crate::theme::palette(ui.ctx());
         let compact = ui.available_height() < 480.0;
         let height = if compact { 72.0 } else { 96.0 };
         let (header, _) =
@@ -11,14 +12,18 @@ impl App {
         let button = |ui: &mut Ui, rect, text: &str| {
             ui.place(
                 rect,
-                Button::new(RichText::new(text).color(if pending { MUTED } else { TEXT }))
-                    .sense(if pending {
-                        Sense::hover()
-                    } else {
-                        Sense::click()
-                    })
-                    .fill(CARD)
-                    .corner_radius(8),
+                Button::new(RichText::new(text).color(if pending {
+                    colors.muted
+                } else {
+                    colors.text
+                }))
+                .sense(if pending {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                })
+                .fill(colors.card)
+                .corner_radius(8),
             )
         };
         let back_rect = Rect::from_center_size(
@@ -42,7 +47,7 @@ impl App {
 
         let card = Rect::from_min_max(header.min + vec2(56.0, 0.0), header.max);
         let p = ui.painter().with_clip_rect(card.intersect(ui.clip_rect()));
-        p.rect_filled(card, 8, PANEL);
+        p.rect_filled(card, 8, colors.panel);
         let cover = Rect::from_min_size(card.min + vec2(4.0, 4.0), Vec2::splat(height - 8.0));
         let texture = self.artwork.as_mut().and_then(|cache| cache.texture(track));
         if let Some(texture) = texture {
@@ -92,14 +97,14 @@ impl App {
             title_rect,
             title,
             if compact { 24.0 } else { 28.0 },
-            TEXT,
+            colors.text,
         );
         theme::text(
             &p,
             artist_rect,
             artist,
             if compact { 19.0 } else { 22.0 },
-            MUTED,
+            colors.muted,
         );
         self.hit("Inspect title", title_rect);
         self.hit("Inspect artist", artist_rect);
@@ -163,10 +168,10 @@ impl App {
                 }
             ),
             size,
-            TEXT,
+            colors.text,
         );
         if format.width() > 0.0 {
-            theme::text(&p, format, &track.file_type, 12.0, MUTED);
+            theme::text(&p, format, &track.file_type, 12.0, colors.muted);
         }
         self.hit("Inspect BPM", bpm);
         self.hit("Inspect key", key);
@@ -189,6 +194,7 @@ impl App {
     }
 
     fn inspect_tag_labels(&mut self, ui: &mut Ui, row: Rect, track: &Track) {
+        let colors = crate::theme::palette(ui.ctx());
         // The list already carries tag names; displaying them needs no extra
         // catalog request. Identical names in different categories appear once.
         let mut tags = Vec::new();
@@ -207,12 +213,17 @@ impl App {
         }
         let p = ui.painter().with_clip_rect(row.intersect(ui.clip_rect()));
         let font = FontId::proportional(12.0);
-        let width = |text: &str| p.layout_no_wrap(text.into(), font.clone(), TEXT).size().x + 16.0;
+        let width = |text: &str| {
+            p.layout_no_wrap(text.into(), font.clone(), colors.text)
+                .size()
+                .x
+                + 16.0
+        };
         let paint = |left: f32, width: f32, label: &str| {
             let rect = Rect::from_min_size(pos2(left, row.top()), vec2(width, row.height()));
-            p.rect_filled(rect, 3, CARD);
-            p.rect_stroke(rect, 3, Stroke::new(1.0, LINE), StrokeKind::Inside);
-            theme::text(&p, rect.shrink2(vec2(8.0, 0.0)), label, 12.0, TEXT);
+            p.rect_filled(rect, 3, colors.card);
+            p.rect_stroke(rect, 3, Stroke::new(1.0, colors.line), StrokeKind::Inside);
+            theme::text(&p, rect.shrink2(vec2(8.0, 0.0)), label, 12.0, colors.text);
         };
         let mut left = row.left();
         let mut shown = 0;

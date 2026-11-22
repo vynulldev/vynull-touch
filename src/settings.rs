@@ -11,6 +11,7 @@ pub const BEAT_JUMP_SIZES: [u8; 6] = [1, 2, 4, 8, 16, 32];
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 pub struct Settings {
+    pub theme: crate::theme::UiTheme,
     pub server: Option<String>,
     pub startup_page: StartupPage,
     pub waveform_zoom: f64,
@@ -74,6 +75,7 @@ fn valid_pair(pair: [u8; 2]) -> bool {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            theme: Default::default(),
             server: None,
             startup_page: StartupPage::default(),
             waveform_zoom: DEFAULT_ZOOM,
@@ -174,6 +176,12 @@ pub fn load(path: Option<&Path>) -> Settings {
 #[cfg(test)]
 pub fn load_zoom(path: Option<&Path>) -> f64 {
     load(path).waveform_zoom
+}
+
+pub fn save_theme(path: &Path, theme: crate::theme::UiTheme) -> io::Result<()> {
+    let mut settings = load(Some(path));
+    settings.theme = theme;
+    save(path, &settings)
 }
 
 pub fn save_zoom(path: &Path, zoom: f64) -> io::Result<()> {
@@ -314,6 +322,37 @@ fn save(path: &Path, settings: &Settings) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn theme_defaults_and_saved_choice_preserve_other_preferences() {
+        use crate::theme::UiTheme;
+        let root =
+            std::env::temp_dir().join(format!("vynull-theme-settings-{}", std::process::id()));
+        let path = root.join("settings.json");
+        std::fs::create_dir_all(&root).unwrap();
+        for json in [
+            r#"{"waveform_zoom":16}"#,
+            r#"{"theme":"future_theme","waveform_zoom":16}"#,
+        ] {
+            std::fs::write(&path, json).unwrap();
+            let saved = super::load(Some(&path));
+            assert_eq!(saved.theme, UiTheme::XdjAz);
+            assert_eq!(saved.waveform_zoom, 16.0);
+        }
+        super::save_startup_page(&path, super::StartupPage::Players).unwrap();
+        for theme in UiTheme::ALL {
+            super::save_theme(&path, theme).unwrap();
+            super::save_audio(&path, None, 0.25).unwrap();
+            super::save_waveform_style(&path, crate::waveform::Style::Blue).unwrap();
+            let saved = super::load(Some(&path));
+            assert_eq!(saved.theme, theme);
+            assert_eq!(saved.audio_volume, 0.25);
+            assert_eq!(saved.waveform_zoom, 16.0);
+            assert_eq!(saved.startup_page, super::StartupPage::Players);
+            assert_eq!(saved.waveform_style, crate::waveform::Style::Blue);
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn recording_preferences_survive_unrelated_saves() {
         let root =

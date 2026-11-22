@@ -321,12 +321,17 @@ impl App {
     }
 
     pub(super) fn prepare_icon(&mut self, ui: &mut Ui, rect: Rect, track: &Track) {
+        let colors = crate::theme::palette(ui.ctx());
         let prepared = self.prepared(track);
         let enabled = self.prepare_writable() && !self.grid_pending();
         let response = ui.place(
             rect,
             Button::new("")
-                .fill(if prepared { SELECTED } else { CARD })
+                .fill(if prepared {
+                    colors.selected
+                } else {
+                    colors.card
+                })
                 .sense(if enabled {
                     Sense::click()
                 } else {
@@ -341,9 +346,9 @@ impl App {
             if prepared {
                 GREEN
             } else if enabled {
-                TEXT
+                colors.text
             } else {
-                MUTED
+                colors.muted
             },
         );
         self.hit("Prepare add", response.rect);

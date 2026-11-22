@@ -258,6 +258,7 @@ impl App {
     }
 
     pub(super) fn edit_dialog(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut manager) = self.editor.take() else {
             return;
         };
@@ -356,7 +357,7 @@ impl App {
                 let writable =
                     self.options.demo || (self.library_session.is_some() && self.fresh());
                 if !writable {
-                    ui.colored_label(MUTED, "Reconnect before saving changes.");
+                    ui.colored_label(colors.muted, "Reconnect before saving changes.");
                 }
                 let height = (ctx.content_rect().bottom() - 32.0 - ui.cursor().top()).max(80.0);
                 if matches!(

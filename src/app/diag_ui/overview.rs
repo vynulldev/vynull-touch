@@ -198,13 +198,14 @@ impl App {
     }
 
     pub(super) fn diagnostic_overview(&self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let sections = self.diagnostic_sections();
         ScrollArea::vertical().id_salt("diagnostic-overview")
             .scroll_source(scroll_area::ScrollSource::ALL)
             .auto_shrink([false, false]).show(ui, |ui| {
                 ui.columns(2, |columns| {
                     for (index, section) in sections.iter().enumerate() {
-                        Frame::new().fill(PANEL).corner_radius(8).inner_margin(12)
+                        Frame::new().fill(colors.panel).corner_radius(8).inner_margin(12)
                             .show(&mut columns[index % 2], |ui| {
                                 ui.set_min_width(ui.available_width());
                                 ui.label(RichText::new(section.title).size(11.0).color(ORANGE));
@@ -214,7 +215,7 @@ impl App {
                             });
                     }
                 });
-                ui.label(RichText::new("Error counts cover API, log and version requests since connecting. Artwork, waveform and audio fetches are separate.").size(11.0).color(MUTED));
+                ui.label(RichText::new("Error counts cover API, log and version requests since connecting. Artwork, waveform and audio fetches are separate.").size(11.0).color(colors.muted));
             });
         ui.ctx().request_repaint_after(Duration::from_secs(1));
     }

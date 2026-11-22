@@ -102,6 +102,7 @@ impl FilterDraft {
 
 impl App {
     pub(super) fn collection_toolbar(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal(|ui| {
             let clear_width = if self.query.is_empty() { 0.0 } else { 56.0 };
             let search_width = (ui.available_width() - clear_width - 360.0).max(64.0);
@@ -110,7 +111,7 @@ impl App {
                 TextEdit::singleline(&mut self.query)
                     .id_salt("library-search")
                     .hint_text("Search…")
-                    .background_color(CARD)
+                    .background_color(colors.card)
                     .margin(vec2(12.0, 14.0)),
             );
             self.hit("Search", search.rect);
@@ -144,8 +145,8 @@ impl App {
             let sort = ui.add_sized(
                 vec2(124.0, 48.0),
                 Button::new(RichText::new(self.order.label()).size(14.0))
-                    .fill(CARD)
-                    .corner_radius(2),
+                    .fill(colors.card)
+                    .corner_radius(colors.radius),
             );
             self.hit("Library sort", sort.rect);
             if sort.clicked() {
@@ -192,6 +193,7 @@ impl App {
     }
 
     pub(super) fn sort_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut order) = self.sort_dialog else {
             return;
         };
@@ -240,7 +242,7 @@ impl App {
                     "Unknown values stay at the end. Equal values keep source order."
                 })
                 .size(12.0)
-                .color(MUTED),
+                .color(colors.muted),
             );
             ui.horizontal(|ui| {
                 let cancel = theme::button(ui, "Cancel", vec2(120.0, 48.0), false);
@@ -264,6 +266,7 @@ impl App {
     }
 
     pub(super) fn filter_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut draft) = self.filter_dialog.take() else {
             return;
         };
@@ -316,7 +319,7 @@ impl App {
                                 self.tracks.len()
                             ))
                             .size(13.0)
-                            .color(MUTED),
+                            .color(colors.muted),
                         )
                         .truncate(),
                     );
@@ -361,6 +364,7 @@ impl App {
     }
 
     fn bpm_controls(&mut self, ui: &mut Ui, draft: &mut FilterDraft) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(vec2(200.0, 216.0), Layout::top_down(Align::Min), |ui| {
                 for (index, label) in ["Minimum BPM", "Maximum BPM"].into_iter().enumerate() {
@@ -370,7 +374,7 @@ impl App {
                             .color(if draft.editing == index {
                                 ORANGE
                             } else {
-                                MUTED
+                                colors.muted
                             }),
                     );
                     let value = if index == 0 {
@@ -429,6 +433,7 @@ impl App {
     }
 
     fn filter_choices(&mut self, ui: &mut Ui, draft: &mut FilterDraft) {
+        let colors = crate::theme::palette(ui.ctx());
         let tab = draft.tab;
         let mut options = vec![(
             "any".to_string(),
@@ -491,14 +496,17 @@ impl App {
                             };
                             let (rect, response) =
                                 ui.allocate_exact_size(vec2(width, 48.0), Sense::click());
-                            ui.painter()
-                                .rect_filled(rect, 8, if active { SELECTED } else { CARD });
+                            ui.painter().rect_filled(
+                                rect,
+                                8,
+                                if active { colors.selected } else { colors.card },
+                            );
                             theme::text(
                                 ui.painter(),
                                 rect.shrink2(vec2(10.0, 0.0)),
                                 label,
                                 15.0,
-                                if active { ORANGE } else { TEXT },
+                                if active { ORANGE } else { colors.text },
                             );
                             self.hit(&format!("Filter {} {label}", TABS[tab]), rect);
                             if response.clicked() {

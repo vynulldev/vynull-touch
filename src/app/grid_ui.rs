@@ -329,6 +329,7 @@ impl App {
     }
 
     pub(super) fn grid_lock_control(&mut self, ui: &mut Ui, rect: Rect) {
+        let colors = crate::theme::palette(ui.ctx());
         let Some(mut editor) = self.grid_editor.take() else {
             return;
         };
@@ -341,14 +342,18 @@ impl App {
         let color = if enabled && locked {
             ORANGE
         } else if enabled {
-            TEXT
+            colors.text
         } else {
-            MUTED
+            colors.muted
         };
         let response = ui.place(
             rect,
             Button::new("")
-                .fill(if known && locked { SELECTED } else { CARD })
+                .fill(if known && locked {
+                    colors.selected
+                } else {
+                    colors.card
+                })
                 .corner_radius(8)
                 .sense(if enabled {
                     Sense::click()
@@ -391,13 +396,13 @@ impl App {
             label.with_min_y(rect.top() + 24.0),
             state,
             12.0,
-            MUTED,
+            colors.muted,
         );
         let switch = Rect::from_center_size(
             pos2(rect.right() - 28.0, rect.top() + 14.0),
             vec2(36.0, 18.0),
         );
-        painter.rect_filled(switch, 9, if known && locked { color } else { LINE });
+        painter.rect_filled(switch, 9, if known && locked { color } else { colors.line });
         if known {
             painter.circle_filled(
                 pos2(
@@ -409,7 +414,7 @@ impl App {
                     switch.center().y,
                 ),
                 6.0,
-                if locked { BG } else { MUTED },
+                if locked { colors.bg } else { colors.muted },
             );
         }
         if response.clicked() && enabled {

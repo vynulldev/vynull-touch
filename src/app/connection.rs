@@ -79,11 +79,12 @@ impl App {
     }
 
     pub(super) fn connection_banner(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         if self.options.demo || matches!(self.connection, api::Connection::Connected) {
             return;
         }
         Frame::new()
-            .fill(PANEL)
+            .fill(colors.panel)
             .inner_margin(Margin::symmetric(8, 6))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -116,13 +117,14 @@ impl App {
     }
 
     pub(super) fn settings(&mut self, ui: &mut Ui, ctx: &Context) {
+        let colors = crate::theme::palette(ui.ctx());
         ScrollArea::vertical()
             .id_salt("setup")
             .scroll_source(scroll_area::ScrollSource::ALL)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.heading("Make yourself at home");
-                ui.label(RichText::new("Connect this screen to your Vynull library.").size(14.0).color(MUTED));
+                ui.label(RichText::new("Connect this screen to your Vynull library.").size(14.0).color(colors.muted));
                 ui.horizontal(|ui| {
                     let devices = theme::button(ui, "CDJ & mixer…", vec2(180.0, 48.0), false);
                     self.hit("CDJ & mixer", devices.rect);
@@ -134,6 +136,12 @@ impl App {
                         self.cue_defaults = Some(cue_defaults_ui::Picker::default());
                     }
                     self.key_matching_button(ui, "Key matching…", 164.0);
+                    let theme = theme::button(ui, "Theme…", vec2(104.0, 48.0), false);
+                    self.hit("Theme", theme.rect);
+                    if theme.clicked() {
+                        self.keyboard = None;
+                        self.theme_picker = true;
+                    }
                 });
                 ui.add_space(10.0);
                 ui.label(RichText::new("VYNULL SERVER").size(11.0).color(ORANGE));
@@ -193,7 +201,7 @@ impl App {
                         "Library refreshes automatically. Use Refresh for cues on this server."
                     } else {
                         "Library and cues refresh automatically when you finish scrolling or editing."
-                    }).size(12.0).color(MUTED));
+                    }).size(12.0).color(colors.muted));
                 }
                 ui.add_space(10.0);
                 ui.label(RichText::new("STARTUP TAB").size(11.0).color(ORANGE));
@@ -210,7 +218,7 @@ impl App {
                         }
                     }
                 });
-                ui.label(RichText::new("Server saved after connecting. Launcher options override saved preferences.").size(12.0).color(MUTED));
+                ui.label(RichText::new("Server saved after connecting. Launcher options override saved preferences.").size(12.0).color(colors.muted));
                 ui.add_space(10.0);
                 ui.label(RichText::new("WAVEFORM STYLE").size(11.0).color(ORANGE));
                 ui.horizontal(|ui| {
@@ -226,7 +234,7 @@ impl App {
                         }
                     }
                 });
-                ui.label(RichText::new("Library, Players and Inspect. Auto prefers 3-band; missing analysis uses RGB.").size(12.0).color(MUTED));
+                ui.label(RichText::new("Library, Players and Inspect. Auto prefers 3-band; missing analysis uses RGB.").size(12.0).color(colors.muted));
                 ui.add_space(10.0);
                 ui.label(RichText::new("FULL-TRACK WAVEFORM").size(11.0).color(ORANGE));
                 let three_band = self.waveform_style == crate::waveform::Style::ThreeBand;
@@ -250,7 +258,7 @@ impl App {
                     "3-band always uses Half. Your RGB/Blue choice is remembered."
                 } else {
                     "Library, Players and Inspect. Auto uses Half whenever it displays 3-band."
-                }).size(12.0).color(MUTED));
+                }).size(12.0).color(colors.muted));
                 if !self.connection_error.is_empty() { ui.colored_label(ORANGE, &self.connection_error); }
                 ui.add_space(10.0);
                 ui.label(RichText::new("PREVIEW AUDIO").size(11.0).color(ORANGE));
@@ -264,7 +272,7 @@ impl App {
                     }
                     let selected = self.preview.request.device.as_ref()
                         .map_or("System default", |device| device.name.as_str());
-                    ui.add(Label::new(RichText::new(format!("{selected} · {:.0}%", self.preview.request.volume * 100.0)).size(14.0).color(MUTED)).truncate());
+                    ui.add(Label::new(RichText::new(format!("{selected} · {:.0}%", self.preview.request.volume * 100.0)).size(14.0).color(colors.muted)).truncate());
                 });
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {

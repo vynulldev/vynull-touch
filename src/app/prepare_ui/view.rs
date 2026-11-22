@@ -3,6 +3,7 @@ use super::*;
 
 impl App {
     pub(in crate::app) fn prepare_view(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let playlist = self.prepare_playlist().cloned();
         let on_deck = self.on_deck_snapshot();
         ui.horizontal(|ui| {
@@ -37,7 +38,7 @@ impl App {
             }
         });
         if self.prepare.pending.is_some() {
-            ui.label(RichText::new("Updating Prepare…").color(MUTED));
+            ui.label(RichText::new("Updating Prepare…").color(colors.muted));
         }
         if !self.prepare.error.is_empty() {
             ui.add(Label::new(RichText::new(&self.prepare.error).color(ORANGE).size(13.0)).wrap());
@@ -52,7 +53,7 @@ impl App {
             ui.label(message);
             ui.label(
                 RichText::new("The playlist is shared with your other Vynull clients.")
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             return;
         };
@@ -60,7 +61,7 @@ impl App {
             .exact_size(48.0)
             .resizable(false)
             .show_separator_line(false)
-            .frame(Frame::new().fill(BG))
+            .frame(Frame::new().fill(colors.bg))
             .show(ui, |ui| self.prepare_actions(ui, &playlist));
         if playlist.track_ids.is_empty() {
             ui.add_space(16.0);
@@ -68,7 +69,7 @@ impl App {
             ui.label("Tap Prepare on a track in Collection, Inspect or Match.");
             ui.label(
                 RichText::new("Loading a track keeps it in the list until you remove it.")
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             return;
         }
@@ -97,11 +98,11 @@ impl App {
                             rect,
                             0,
                             if selected {
-                                SELECTED
+                                colors.selected
                             } else if index % 2 == 0 {
-                                PANEL
+                                colors.panel
                             } else {
-                                BG
+                                colors.bg
                             },
                         );
                         theme::text(
@@ -109,7 +110,7 @@ impl App {
                             Rect::from_min_size(rect.min + vec2(4.0, 0.0), vec2(30.0, 58.0)),
                             (index + 1).to_string(),
                             12.0,
-                            MUTED,
+                            colors.muted,
                         );
                         let cover =
                             Rect::from_min_size(rect.min + vec2(38.0, 5.0), vec2(48.0, 48.0));
@@ -148,7 +149,7 @@ impl App {
                             ),
                             title,
                             17.0,
-                            TEXT,
+                            colors.text,
                         );
                         let mut subtitle_rect = Rect::from_min_max(
                             pos2(text_left, rect.top() + 30.0),
@@ -157,7 +158,7 @@ impl App {
                         if let Some(track) = &track {
                             subtitle_rect = self.paint_on_deck(ui, subtitle_rect, track, &on_deck);
                         }
-                        theme::text(&painter, subtitle_rect, subtitle, 13.0, MUTED);
+                        theme::text(&painter, subtitle_rect, subtitle, 13.0, colors.muted);
                         if let Some(track) = &track {
                             for (offset, width, value) in [
                                 (
@@ -180,7 +181,7 @@ impl App {
                                     ),
                                     value,
                                     14.0,
-                                    TEXT,
+                                    colors.text,
                                 );
                             }
                         }
@@ -287,6 +288,7 @@ impl App {
     }
 
     pub(in crate::app) fn prepare_picker(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let mut close = false;
         let modal = Modal::new(Id::unique("prepare-picker")).show(ctx, |ui| {
             ui.set_width((ctx.content_rect().width() - 64.0).min(640.0));
@@ -298,7 +300,7 @@ impl App {
                     "Use a regular playlist shared with your other Vynull clients."
                 })
                 .size(14.0)
-                .color(MUTED),
+                .color(colors.muted),
             );
             ui.horizontal(|ui| {
                 let cancel = ui
@@ -381,13 +383,13 @@ impl App {
                                 Sense::click(),
                             );
                             ui.painter()
-                                .rect_filled(rect.shrink2(vec2(0.0, 3.0)), 6, CARD);
+                                .rect_filled(rect.shrink2(vec2(0.0, 3.0)), 6, colors.card);
                             theme::text(
                                 ui.painter(),
                                 rect.shrink2(vec2(12.0, 0.0)),
                                 label,
                                 16.0,
-                                TEXT,
+                                colors.text,
                             );
                             self.hit(&format!("Prepare playlist {}", playlist.id), rect);
                             if response.clicked() {

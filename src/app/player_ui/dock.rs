@@ -2,9 +2,10 @@
 use super::*;
 
 impl App {
-    /// Keep the selected deck pair visible while browsing, as on the XDJ-AZ.
+    /// Keep the selected deck pair visible while browsing in either theme.
     /// The keyboard and Inspect retain their full working area.
     pub(in crate::app) fn browse_deck_dock(&mut self, root: &mut Ui) {
+        let colors = crate::theme::palette(root.ctx());
         if self.keyboard.is_some()
             || !matches!(
                 self.page,
@@ -16,7 +17,11 @@ impl App {
         Panel::bottom("browse-decks")
             .exact_size(64.0)
             .resizable(false)
-            .frame(Frame::new().fill(BG).inner_margin(Margin::symmetric(6, 2)))
+            .frame(
+                Frame::new()
+                    .fill(colors.bg)
+                    .inner_margin(Margin::symmetric(6, 2)),
+            )
             .show(root, |ui| {
                 let width = (ui.available_width() - 4.0) / 2.0;
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -27,18 +32,37 @@ impl App {
                             ui.allocate_exact_size(vec2(width, 60.0), Sense::click());
                         self.hit(&format!("Browse deck {number}"), rect);
                         let p = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                        p.rect_filled(rect, 0, BG);
-                        p.rect_stroke(rect, 0, Stroke::new(1.0, LINE), StrokeKind::Inside);
+                        let xdj = self.ui_theme.is_xdj();
+                        let radius = if xdj { 0 } else { colors.radius };
+                        p.rect_filled(rect, radius, if xdj { colors.bg } else { colors.panel });
+                        p.rect_stroke(
+                            rect,
+                            radius,
+                            Stroke::new(1.0, colors.line),
+                            StrokeKind::Inside,
+                        );
                         let inner = rect.shrink(3.0);
                         let title_row = inner.with_max_y(inner.top() + 18.0);
                         let badge = title_row.with_max_x(title_row.left() + 22.0);
-                        p.rect_filled(badge, 0, if deck.live { BLUE } else { CARD });
+                        p.rect_filled(
+                            badge,
+                            0,
+                            if deck.live {
+                                colors.accent
+                            } else {
+                                colors.card
+                            },
+                        );
                         p.text(
                             badge.center(),
                             Align2::CENTER_CENTER,
                             number.to_string(),
                             FontId::proportional(14.0),
-                            TEXT,
+                            if deck.live && !xdj {
+                                colors.bg
+                            } else {
+                                colors.text
+                            },
                         );
                         let player = deck.player.as_ref();
                         let title = player.map_or("Not connected", |player| {
@@ -58,14 +82,14 @@ impl App {
                             ),
                             title,
                             13.0,
-                            TEXT,
+                            colors.text,
                         );
                         theme::text(
                             &p,
                             title_row.with_min_x(title_row.right() - 48.0),
                             player.map_or("", |player| player.key.as_str()),
                             12.0,
-                            MUTED,
+                            colors.muted,
                         );
                         let remaining = deck
                             .position
@@ -87,7 +111,7 @@ impl App {
                                 .with_max_y(lower.top() + 12.0),
                             state,
                             9.0,
-                            if deck.live { MUTED } else { ORANGE },
+                            if deck.live { colors.muted } else { ORANGE },
                         );
                         theme::text(
                             &p,
@@ -96,7 +120,7 @@ impl App {
                                 .with_min_y(lower.top() + 12.0),
                             remaining,
                             17.0,
-                            TEXT,
+                            colors.text,
                         );
                         let bpm = lower.with_min_x(lower.right() - 65.0);
                         let master = deck.live && player.is_some_and(|player| player.is_master);
@@ -105,7 +129,7 @@ impl App {
                             bpm.with_max_y(bpm.top() + 12.0),
                             if master { "BPM · MASTER" } else { "BPM" },
                             9.0,
-                            if master { ORANGE } else { MUTED },
+                            if master { ORANGE } else { colors.muted },
                         );
                         theme::text(
                             &p,
@@ -114,7 +138,7 @@ impl App {
                                 .filter(|p| p.bpm.is_finite() && p.bpm > 0.0)
                                 .map_or("—".into(), |p| format!("{:.1}", p.bpm)),
                             20.0,
-                            if master { ORANGE } else { TEXT },
+                            if master { ORANGE } else { colors.text },
                         );
                         let wave = Rect::from_min_max(
                             lower.min + vec2(74.0, 0.0),
@@ -131,7 +155,11 @@ impl App {
                                 true,
                             );
                         } else {
-                            p.hline(wave.x_range(), wave.center().y, Stroke::new(1.0, LINE));
+                            p.hline(
+                                wave.x_range(),
+                                wave.center().y,
+                                Stroke::new(1.0, colors.line),
+                            );
                         }
                         if response.on_hover_text("Open this player").clicked() {
                             self.page = Page::Players;
@@ -157,7 +185,9 @@ mod tests {
 
     #[test]
     fn browse_dock_keeps_controls_accessible_and_gives_the_keyboard_its_space() {
-        for size in [vec2(800.0, 480.0), vec2(1024.0, 600.0), vec2(1280.0, 800.0)] {
+        for (theme, size) in theme::UiTheme::ALL.into_iter().flat_map(|theme| {
+            [vec2(800.0, 480.0), vec2(1024.0, 600.0), vec2(1280.0, 800.0)].map(|size| (theme, size))
+        }) {
             let ctx = Context::default();
             let mut app = App::new(
                 &ctx,
@@ -167,6 +197,8 @@ mod tests {
                 },
                 None,
             );
+            app.ui_theme = theme;
+            theme::apply(&ctx, theme);
             app.preview = Controller::test().0;
             app.deck_pair = [2, 1];
             for page in [Page::Collection, Page::Playlists, Page::Prepare] {
@@ -212,32 +244,36 @@ mod tests {
 
     #[test]
     fn opening_a_docked_player_stops_preview_without_loading_or_losing_browse_state() {
-        let size = vec2(800.0, 480.0);
-        let ctx = Context::default();
-        let mut app = App::new(
-            &ctx,
-            Options {
-                demo: true,
-                ..Default::default()
-            },
-            None,
-        );
-        let (controller, requests, _results) = Controller::test();
-        app.preview = controller;
-        app.source(Some(app.playlists[0].clone()));
-        let source = app.source;
-        click(&mut app, &ctx, size, "Track 1");
-        click(&mut app, &ctx, size, "Library preview");
-        assert!(requests.borrow().playing);
-        click(&mut app, &ctx, size, "Browse deck 1");
-        assert_eq!(app.page, Page::Players);
-        assert_eq!(app.deck_focus, Some(1));
-        assert!(!requests.borrow().playing);
-        assert!(app.library_preview.is_none());
-        assert!(app.pending_load.is_none() && !app.load_dialog);
-        assert_eq!(app.status.players[0].track_id, 1);
-        click(&mut app, &ctx, size, "Collection");
-        assert_eq!(app.source, source);
-        assert_eq!(app.selected, Some(1));
+        for theme in theme::UiTheme::ALL {
+            let size = vec2(800.0, 480.0);
+            let ctx = Context::default();
+            let mut app = App::new(
+                &ctx,
+                Options {
+                    demo: true,
+                    ..Default::default()
+                },
+                None,
+            );
+            app.ui_theme = theme;
+            theme::apply(&ctx, theme);
+            let (controller, requests, _results) = Controller::test();
+            app.preview = controller;
+            app.source(Some(app.playlists[0].clone()));
+            let source = app.source;
+            click(&mut app, &ctx, size, "Track 1");
+            click(&mut app, &ctx, size, "Library preview");
+            assert!(requests.borrow().playing);
+            click(&mut app, &ctx, size, "Browse deck 1");
+            assert_eq!(app.page, Page::Players);
+            assert_eq!(app.deck_focus, Some(1));
+            assert!(!requests.borrow().playing);
+            assert!(app.library_preview.is_none());
+            assert!(app.pending_load.is_none() && !app.load_dialog);
+            assert_eq!(app.status.players[0].track_id, 1);
+            click(&mut app, &ctx, size, "Collection");
+            assert_eq!(app.source, source);
+            assert_eq!(app.selected, Some(1));
+        }
     }
 }
