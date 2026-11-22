@@ -4,6 +4,7 @@ use std::ops::Range;
 
 impl App {
     pub(super) fn player_focus(&mut self, ui: &mut Ui, number: u8) {
+        let colors = crate::theme::palette(ui.ctx());
         let DeckSnapshot {
             peer,
             player,
@@ -49,7 +50,7 @@ impl App {
                     player_state(self.fresh(), self.linked, peer.as_ref(), player.as_ref())
                 ),
                 13.0,
-                if live { GREEN } else { MUTED },
+                if live { GREEN } else { colors.muted },
             );
         });
         let (metadata, _) =
@@ -85,13 +86,13 @@ impl App {
                 &p.track_title
             }
         });
-        theme::text(&p, text_rect(0.0, 27.0), title, 22.0, TEXT);
+        theme::text(&p, text_rect(0.0, 27.0), title, 22.0, colors.text);
         theme::text(
             &p,
             text_rect(29.0, 20.0),
             player.as_ref().map_or("", |p| p.artist.as_str()),
             14.0,
-            MUTED,
+            colors.muted,
         );
         let source = player
             .as_ref()
@@ -123,7 +124,7 @@ impl App {
                 "— BPM".into()
             },
             24.0,
-            TEXT,
+            colors.text,
         );
         if let Some(player) = &player {
             theme::text(
@@ -214,7 +215,7 @@ impl App {
             Rect::from_min_size(times.min, vec2(220.0, 24.0)),
             timing,
             18.0,
-            TEXT,
+            colors.text,
         );
         let hint = timing::cue_summary(&assets, position, true).unwrap_or_else(|| {
             if position.is_none() {
@@ -234,7 +235,7 @@ impl App {
             Rect::from_min_max(times.min + vec2(228.0, 0.0), times.max),
             hint,
             12.0,
-            MUTED,
+            colors.muted,
         );
         ui.horizontal(|ui| {
             let inspect = ui
@@ -289,7 +290,7 @@ impl App {
                 label,
                 format!("Detail · {} s", self.deck_span as u32),
                 14.0,
-                MUTED,
+                colors.muted,
             );
             for (name, factor) in [("−", 2.0), ("+", 0.5)] {
                 let span = (self.deck_span * factor).clamp(4.0, 64.0);
@@ -347,8 +348,9 @@ pub(super) fn paint_detail(
     style: crate::waveform::Style,
     header_right: f32,
 ) {
+    let colors = crate::theme::palette(p.ctx());
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
-    p.rect_filled(rect, 4, BG);
+    p.rect_filled(rect, 4, colors.bg);
     let rect = if assets.phrases.is_empty() {
         rect
     } else {
@@ -370,7 +372,7 @@ pub(super) fn paint_detail(
             rect.shrink(12.0),
             "Waiting for player timing",
             15.0,
-            MUTED,
+            colors.muted,
         );
         return;
     };
@@ -386,7 +388,7 @@ pub(super) fn paint_detail(
                 "Detail waveform unavailable"
             },
             15.0,
-            MUTED,
+            colors.muted,
         );
         crate::waveform::markers::hot_cues(
             &p,
@@ -437,7 +439,7 @@ pub(super) fn paint_detail(
                     Align2::LEFT_BOTTOM,
                     "1",
                     FontId::proportional(9.0),
-                    MUTED,
+                    colors.muted,
                 );
             }
         }
@@ -495,14 +497,14 @@ pub(super) fn paint_detail(
         crate::waveform::markers::Edge::Bottom,
     );
     if let Some(position) = position {
-        p.vline(x(position), rect.y_range(), Stroke::new(2.0, TEXT));
+        p.vline(x(position), rect.y_range(), Stroke::new(2.0, colors.text));
     } else {
         p.text(
             rect.left_top() + vec2(8.0, 2.0),
             Align2::LEFT_TOP,
             "Position unavailable",
             FontId::proportional(10.0),
-            MUTED,
+            colors.muted,
         );
     }
 }

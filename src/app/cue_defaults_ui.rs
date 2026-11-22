@@ -26,6 +26,7 @@ impl App {
     }
 
     pub(super) fn cue_defaults_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut picker) = self.cue_defaults.take() else {
             return;
         };
@@ -37,12 +38,12 @@ impl App {
             ui.label(
                 RichText::new("New hot cues and saved loops use these colors on this screen.")
                     .size(14.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ui.label(
                 RichText::new("Existing cues keep their colors.")
                     .size(14.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -54,7 +55,7 @@ impl App {
                             .fill(cues::color(self.hot_cue_colors[index]))
                             .stroke(Stroke::new(
                                 if picker.slot == index { 3.0 } else { 0.0 },
-                                TEXT,
+                                colors.text,
                             )),
                     );
                     self.hit(&format!("Default cue slot {label}"), response.rect);
@@ -85,7 +86,7 @@ impl App {
                                     vec2(48.0, 48.0),
                                     Button::new("").fill(cues::color(id)).stroke(Stroke::new(
                                         if selected == id { 2.0 } else { 0.0 },
-                                        TEXT,
+                                        colors.text,
                                     )),
                                 );
                                 self.hit(&format!("Default cue color {id}"), response.rect);
@@ -110,7 +111,7 @@ impl App {
                 ui.label(
                     RichText::new("Changes save automatically.")
                         .size(13.0)
-                        .color(MUTED),
+                        .color(colors.muted),
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let done = theme::primary(ui, "Done", vec2(112.0, 48.0));

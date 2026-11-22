@@ -55,7 +55,11 @@ impl App {
                 if detail.beat_grid.is_empty() {
                     "No beat grid".into()
                 } else if let Some((number, bar_beat)) = detail.beat_grid.beat_at(self.position) {
-                    format!("Beat {number} ({bar_beat}/4)")
+                    // Include a partial opening bar so the count advances on
+                    // the saved downbeat even when the grid starts mid-bar.
+                    let first_beat = detail.beat_grid.beats()[0].beat_in_bar;
+                    let bar = (number - 1 + usize::from(first_beat - 1)) / 4 + 1;
+                    format!("{bar}.{bar_beat} Bars")
                 } else {
                     "Outside beat grid".into()
                 }

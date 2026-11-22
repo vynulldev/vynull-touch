@@ -109,6 +109,7 @@ impl App {
     }
 
     pub(super) fn hot_cue_pads(&mut self, ui: &mut Ui, duration: f64) {
+        let colors = crate::theme::palette(ui.ctx());
         let cues = self
             .detail
             .as_ref()
@@ -145,7 +146,7 @@ impl App {
                 let color = if saving {
                     ORANGE
                 } else {
-                    cue.map_or(MUTED, |c| cues::color(c.color_id))
+                    cue.map_or(colors.muted, |c| cues::color(c.color_id))
                 };
                 let response = ui.add_enabled(
                     enabled,
@@ -154,14 +155,14 @@ impl App {
                         .fill(if cue.is_some() || saving {
                             color.gamma_multiply(0.13)
                         } else {
-                            CARD
+                            colors.card
                         })
                         .stroke(Stroke::new(
                             1.0,
                             if cue.is_some() || saving {
                                 color.gamma_multiply(0.45)
                             } else {
-                                LINE
+                                colors.line
                             },
                         ))
                         .corner_radius(8),
@@ -209,7 +210,11 @@ impl App {
                     Align2::CENTER_BOTTOM,
                     caption,
                     FontId::proportional(11.0),
-                    if cue.is_some() { TEXT } else { MUTED },
+                    if cue.is_some() {
+                        colors.text
+                    } else {
+                        colors.muted
+                    },
                 );
 
                 if pressed
@@ -334,6 +339,7 @@ impl App {
     }
 
     pub(super) fn cue_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut editor) = self.cue_editor.take() else {
             return;
         };
@@ -462,7 +468,7 @@ impl App {
                         "Free placement · +/− nudges 10 ms".into()
                     })
                     .size(13.0)
-                    .color(MUTED),
+                    .color(colors.muted),
                 );
                 let label = ui.add_sized(
                     vec2(ui.available_width(), 48.0),
@@ -487,7 +493,7 @@ impl App {
                                             } else {
                                                 0.0
                                             },
-                                            TEXT,
+                                            colors.text,
                                         )),
                                     );
                                     self.hit(&format!("Cue color {id}"), response.rect);

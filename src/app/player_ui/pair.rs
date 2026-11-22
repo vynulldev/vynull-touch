@@ -16,6 +16,7 @@ impl App {
     }
 
     pub(in crate::app) fn player_pair_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut pair) = self.deck_picker else {
             return;
         };
@@ -41,7 +42,7 @@ impl App {
             ui.label(
                 RichText::new("Set the primary pair for Cards and Waveforms.")
                     .size(14.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ScrollArea::vertical()
                 .id_salt("player-pair-options")
@@ -76,7 +77,7 @@ impl App {
             ui.label(
                 RichText::new("Disconnected players stay available.")
                     .size(12.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ui.horizontal(|ui| {
                 let swap = theme::button(ui, "Swap", vec2(96.0, 48.0), false);

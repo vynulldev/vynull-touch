@@ -129,6 +129,7 @@ impl App {
     }
 
     pub(super) fn browser_settings_view(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let enabled = !self.browser_settings.pending
             && !self.browser_settings.reload
             && self.browser_settings.draft.is_some();
@@ -225,7 +226,7 @@ impl App {
                         let row = &rows[index];
                         ui.push_id((&row.key, sorts), |ui| {
                             Frame::new()
-                                .fill(PANEL)
+                                .fill(colors.panel)
                                 .inner_margin(Margin::symmetric(8, 0))
                                 .corner_radius(6)
                                 .show(ui, |ui| {
@@ -244,7 +245,11 @@ impl App {
                                                     0.0,
                                                     TextFormat::simple(
                                                         FontId::proportional(16.0),
-                                                        if row.visible { TEXT } else { MUTED },
+                                                        if row.visible {
+                                                            colors.text
+                                                        } else {
+                                                            colors.muted
+                                                        },
                                                     ),
                                                 );
                                                 if !row.note.is_empty() {
@@ -253,7 +258,7 @@ impl App {
                                                         0.0,
                                                         TextFormat::simple(
                                                             FontId::proportional(11.0),
-                                                            MUTED,
+                                                            colors.muted,
                                                         ),
                                                     );
                                                 }
@@ -347,7 +352,7 @@ impl App {
                     if self.browser_settings.reload {
                         ORANGE
                     } else {
-                        MUTED
+                        colors.muted
                     },
                 ))
                 .truncate(),
@@ -402,6 +407,7 @@ impl App {
     }
 
     pub(super) fn browser_detail_picker(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(draft) = self.browser_settings.draft.as_ref() else {
             return;
         };
@@ -413,7 +419,7 @@ impl App {
             ui.label(
                 RichText::new("Shown beside titles with DEFAULT sort on the CDJ.")
                     .size(13.0)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
             ScrollArea::vertical()
                 .id_salt("browser-detail-options")

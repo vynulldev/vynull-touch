@@ -22,6 +22,7 @@ impl App {
         manager: &mut Manager,
         request: &mut Option<Request>,
     ) {
+        let colors = crate::theme::palette(ui.ctx());
         if matches!(manager.view, View::Tags | View::Categories) {
             manager.catalog_browser.choice_initialized = false;
             self.catalog_browser(ui, manager, request);
@@ -41,7 +42,7 @@ impl App {
             } => {
                 Panel::bottom("tag-form-actions")
                     .exact_size(48.0).resizable(false).show_separator_line(false)
-                    .frame(Frame::new().fill(PANEL))
+                    .frame(Frame::new().fill(colors.panel))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             if let Some(tag) = before.as_ref()
@@ -73,7 +74,7 @@ impl App {
                     } else {
                         "Create a reusable library tag, then assign it to tracks."
                     })
-                    .color(MUTED),
+                    .color(colors.muted),
                 );
                 self.edit_name(ui, name, &mut manager.typing);
                 ui.label("Category");
@@ -131,7 +132,7 @@ impl App {
             View::CategoryForm { before, name } => {
                 Panel::bottom("category-form-actions")
                     .exact_size(48.0).resizable(false).show_separator_line(false)
-                    .frame(Frame::new().fill(PANEL))
+                    .frame(Frame::new().fill(colors.panel))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             if let Some(category) = before.as_ref()
@@ -159,7 +160,7 @@ impl App {
                     } else {
                         "Group related tags in a reusable category."
                     })
-                    .color(MUTED),
+                    .color(colors.muted),
                 );
                 self.edit_name(ui, name, &mut manager.typing);
             }

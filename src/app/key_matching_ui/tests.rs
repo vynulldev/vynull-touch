@@ -42,7 +42,12 @@ fn tap(app: &mut App, ctx: &Context, size: Vec2, label: &str) {
     );
     assert!(rect.height() >= 48.0, "{label} touch height");
     for phase in [TouchPhase::Start, TouchPhase::End] {
-        let pos = rect.center();
+        // The entire rule row is tappable, including space beyond its label.
+        let pos = if label.starts_with("Key rule ") {
+            rect.right_center() - vec2(8.0, 0.0)
+        } else {
+            rect.center()
+        };
         let mut events = vec![
             InputEvent::PointerMoved(pos),
             InputEvent::Touch {

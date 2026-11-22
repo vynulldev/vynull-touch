@@ -62,6 +62,7 @@ impl App {
         self.cue_editor = Some(editor);
     }
     pub(super) fn loop_toolbar(&mut self, ui: &mut Ui, duration: f64) {
+        let colors = crate::theme::palette(ui.ctx());
         let region = self.preview.request.loop_region;
         let beats = self.loop_length(duration);
         ui.horizontal(|ui| {
@@ -71,7 +72,7 @@ impl App {
                 Rect::from_min_size(label.min, vec2(116.0, 24.0)),
                 time(self.position),
                 14.0,
-                TEXT,
+                colors.text,
             );
             theme::text(
                 ui.painter(),
@@ -86,7 +87,7 @@ impl App {
                     "Loop off".into()
                 },
                 12.0,
-                MUTED,
+                colors.muted,
             );
             let grid = self
                 .detail

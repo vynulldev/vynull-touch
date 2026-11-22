@@ -20,6 +20,7 @@ impl App {
     }
 
     pub(super) fn match_view(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal(|ui| {
             let back = theme::button(ui, "‹ Players", vec2(120.0, 48.0), false);
             self.hit("Match back", back.rect);
@@ -66,7 +67,7 @@ impl App {
             ))
             .truncate(),
         );
-        ui.label(RichText::new("Matches use this captured tempo and the reported key. Tap the player again to refresh.").size(12.0).color(MUTED));
+        ui.label(RichText::new("Matches use this captured tempo and the reported key. Tap the player again to refresh.").size(12.0).color(colors.muted));
         if !self.fresh() {
             ui.colored_label(
                 ORANGE,

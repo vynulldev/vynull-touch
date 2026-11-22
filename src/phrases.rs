@@ -141,11 +141,12 @@ impl Sections {
     }
 
     pub fn paint(&self, painter: &Painter, rect: Rect, range: Range<f64>) {
+        let colors = crate::theme::palette(painter.ctx());
         if !rect.is_positive() || !rect.is_finite() {
             return;
         }
         let p = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
-        p.rect_filled(rect, 0, crate::theme::CARD);
+        p.rect_filled(rect, 0, colors.card);
         let span = range.end - range.start;
         for phrase in self.visible(range.clone()) {
             let x = |time: f64| {
@@ -157,7 +158,7 @@ impl Sections {
             p.vline(
                 segment.left(),
                 segment.y_range(),
-                Stroke::new(1.0, crate::theme::BG),
+                Stroke::new(1.0, colors.bg),
             );
             let text = phrase.text_color();
             let label = p.layout_no_wrap(

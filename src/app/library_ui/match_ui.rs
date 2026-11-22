@@ -30,6 +30,7 @@ impl App {
     }
 
     pub(super) fn library_match_button(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         let player = self.library_match_player();
         let label = match self.library_match {
             Reference::Off => "Match: Off".into(),
@@ -44,9 +45,9 @@ impl App {
                 Button::new(RichText::new(label).size(14.0).color(if player.is_some() {
                     GREEN
                 } else {
-                    MUTED
+                    colors.muted
                 }))
-                .fill(CARD)
+                .fill(colors.card)
                 .corner_radius(8),
             )
             .on_hover_text(self.library_match_description());
@@ -58,6 +59,7 @@ impl App {
     }
 
     pub(in crate::app) fn library_match_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let mut close = false;
         let modal = Modal::new(Id::unique("library-match")).show(ctx, |ui| {
             ui.set_width((ctx.content_rect().width() - 64.0).min(600.0));
@@ -106,7 +108,7 @@ impl App {
             let title = self
                 .library_match_player()
                 .map_or("", |p| p.track_title.as_str());
-            ui.add(Label::new(RichText::new(title).color(MUTED)).truncate());
+            ui.add(Label::new(RichText::new(title).color(colors.muted)).truncate());
             ui.horizontal(|ui| {
                 ui.label("BPM range");
                 for tolerance in [3.0, 6.0, 10.0] {
@@ -144,7 +146,7 @@ impl App {
                             "Same key always matches. Choose which neighbors also match.",
                         )
                         .size(13.0)
-                        .color(MUTED),
+                        .color(colors.muted),
                     )
                     .wrap(),
                 );

@@ -28,6 +28,7 @@ pub(super) struct Diagnostics {
 
 impl App {
     pub(super) fn diagnostics(&mut self, ui: &mut Ui) {
+        let colors = crate::theme::palette(ui.ctx());
         ui.horizontal(|ui| {
             let back = theme::button(ui, "‹ Settings", vec2(112.0, 48.0), false);
             self.hit("Diag back", back.rect);
@@ -118,7 +119,7 @@ impl App {
                 &self.options.server
             },
             12.0,
-            MUTED,
+            colors.muted,
         );
 
         let error_height = if self.diagnostics.logs.error.is_empty() {
@@ -206,9 +207,9 @@ impl App {
                     rect,
                     0,
                     if row.entry.is_multiple_of(2) {
-                        PANEL
+                        colors.panel
                     } else {
-                        BG
+                        colors.bg
                     },
                 );
                 p.text(
@@ -216,7 +217,7 @@ impl App {
                     Align2::LEFT_CENTER,
                     &row.timestamp,
                     FontId::monospace(12.0),
-                    MUTED,
+                    colors.muted,
                 );
                 p.with_clip_rect(rect.intersect(ui.clip_rect())).text(
                     rect.left_center() + vec2(80.0, 0.0),
@@ -249,7 +250,7 @@ impl App {
                 output.inner_rect.shrink(12.0),
                 message,
                 17.0,
-                MUTED,
+                colors.muted,
             );
         }
         let (status, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
@@ -271,7 +272,7 @@ impl App {
                 self.diagnostics.logs.entries.len()
             ),
             12.0,
-            MUTED,
+            colors.muted,
         );
         self.hit("Diag status", status);
     }

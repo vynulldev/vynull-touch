@@ -1,14 +1,99 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use eframe::egui::{self, *};
+use serde::{Deserialize, Serialize};
 
-pub const BG: Color32 = Color32::from_rgb(16, 19, 23);
-pub const PANEL: Color32 = Color32::from_rgb(23, 27, 32);
-pub const CARD: Color32 = Color32::from_rgb(30, 35, 41);
-pub const LINE: Color32 = Color32::from_rgb(43, 49, 56);
-pub const TEXT: Color32 = Color32::from_rgb(235, 238, 241);
-pub const MUTED: Color32 = Color32::from_rgb(147, 157, 168);
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiTheme {
+    Classic,
+    #[default]
+    #[serde(other)]
+    XdjAz,
+}
+
+impl UiTheme {
+    pub const ALL: [Self; 2] = [Self::Classic, Self::XdjAz];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Classic => "Classic",
+            Self::XdjAz => "XDJ-AZ",
+        }
+    }
+
+    pub fn is_xdj(self) -> bool {
+        self == Self::XdjAz
+    }
+
+    pub fn palette(self) -> Palette {
+        match self {
+            Self::Classic => Palette {
+                bg: Color32::from_rgb(16, 19, 23),
+                panel: Color32::from_rgb(23, 27, 32),
+                card: Color32::from_rgb(30, 35, 41),
+                line: Color32::from_rgb(43, 49, 56),
+                text: Color32::from_rgb(235, 238, 241),
+                muted: Color32::from_rgb(147, 157, 168),
+                accent: ORANGE,
+                accent_text: ORANGE,
+                row_selected: Color32::from_rgb(91, 49, 26),
+                selected: Color32::from_rgb(59, 39, 29),
+                radius: 8,
+            },
+            Self::XdjAz => Palette {
+                bg: BG,
+                panel: PANEL,
+                card: CARD,
+                line: LINE,
+                text: TEXT,
+                muted: MUTED,
+                accent: BLUE,
+                accent_text: CYAN,
+                row_selected: ROW_SELECTED,
+                selected: SELECTED,
+                radius: 2,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Palette {
+    pub bg: Color32,
+    pub panel: Color32,
+    pub card: Color32,
+    pub line: Color32,
+    pub text: Color32,
+    pub muted: Color32,
+    pub accent: Color32,
+    pub accent_text: Color32,
+    pub row_selected: Color32,
+    pub selected: Color32,
+    pub radius: u8,
+}
+
+// Keep the choice in the egui context so shared painters use the same palette
+// as widgets, without process-wide state or changing waveform/cue colors.
+pub fn current(ctx: &Context) -> UiTheme {
+    ctx.data(|data| data.get_temp(Id::unique("ui-theme")).unwrap_or_default())
+}
+
+pub fn palette(ctx: &Context) -> Palette {
+    current(ctx).palette()
+}
+
+pub const BG: Color32 = Color32::from_rgb(4, 5, 7);
+const PANEL: Color32 = Color32::from_rgb(24, 25, 28);
+const CARD: Color32 = Color32::from_rgb(39, 41, 45);
+pub const LINE: Color32 = Color32::from_rgb(64, 67, 73);
+pub const TEXT: Color32 = Color32::from_rgb(245, 246, 248);
+const MUTED: Color32 = Color32::from_rgb(166, 171, 180);
+const BLUE: Color32 = Color32::from_rgb(0, 139, 232);
+const CYAN: Color32 = Color32::from_rgb(57, 178, 255);
+const ROW_SELECTED: Color32 = Color32::from_rgb(76, 78, 91);
+pub const ON_AIR: Color32 = Color32::from_rgb(212, 24, 35);
 pub const ORANGE: Color32 = Color32::from_rgb(255, 139, 65);
-pub const SELECTED: Color32 = Color32::from_rgb(59, 39, 29);
+const SELECTED: Color32 = Color32::from_rgb(15, 48, 76);
 pub const GREEN: Color32 = Color32::from_rgb(118, 216, 164);
 
 pub fn configure(ctx: &Context, scale: f32) {
@@ -22,22 +107,31 @@ pub fn configure(ctx: &Context, scale: f32) {
     bold.insert(0, "NotoSans-Bold".into());
     fonts.families.insert(FontFamily::Name("Bold".into()), bold);
     ctx.set_fonts(fonts);
+    apply(ctx, UiTheme::default());
+}
+
+pub fn apply(ctx: &Context, theme: UiTheme) {
+    ctx.data_mut(|data| data.insert_temp(Id::unique("ui-theme"), theme));
+    let colors = theme.palette();
     let mut style = Style {
         visuals: Visuals::dark(),
         ..Default::default()
     };
-    style.visuals.panel_fill = BG;
-    style.visuals.window_fill = PANEL;
-    style.visuals.override_text_color = Some(TEXT);
-    style.visuals.extreme_bg_color = BG;
-    style.visuals.selection.bg_fill = SELECTED;
-    style.visuals.selection.stroke = Stroke::new(1.0, ORANGE);
-    style.visuals.widgets.inactive.weak_bg_fill = CARD;
-    style.visuals.widgets.inactive.bg_fill = CARD;
-    style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+    style.visuals.panel_fill = colors.bg;
+    style.visuals.window_fill = colors.panel;
+    style.visuals.override_text_color = Some(colors.text);
+    style.visuals.extreme_bg_color = colors.bg;
+    style.visuals.selection.bg_fill = colors.selected;
+    style.visuals.selection.stroke = Stroke::new(1.0, colors.accent_text);
+    style.visuals.widgets.inactive.weak_bg_fill = colors.card;
+    style.visuals.widgets.inactive.bg_fill = colors.card;
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, colors.line);
     style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(49, 54, 61);
-    style.visuals.widgets.active.weak_bg_fill = SELECTED;
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, ORANGE);
+    style.visuals.widgets.active.weak_bg_fill = colors.selected;
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, colors.accent_text);
+    style.visuals.widgets.inactive.corner_radius = CornerRadius::same(colors.radius);
+    style.visuals.widgets.hovered.corner_radius = CornerRadius::same(colors.radius);
+    style.visuals.widgets.active.corner_radius = CornerRadius::same(colors.radius);
     style.spacing.item_spacing = vec2(8.0, 8.0);
     style.spacing.button_padding = vec2(14.0, 10.0);
     style.spacing.interact_size = vec2(48.0, 48.0);
@@ -56,23 +150,43 @@ pub fn configure(ctx: &Context, scale: f32) {
         .insert(TextStyle::Heading, FontId::proportional(25.0));
     ctx.set_theme(Theme::Dark);
     ctx.set_style_of(Theme::Dark, style);
+    ctx.request_repaint();
 }
 
 pub fn button(ui: &mut Ui, label: &str, size: Vec2, active: bool) -> Response {
+    let colors = palette(ui.ctx());
     ui.add_sized(
         size,
-        Button::new(RichText::new(label).color(if active { ORANGE } else { TEXT }))
-            .fill(if active { SELECTED } else { CARD })
-            .corner_radius(8),
+        Button::new(RichText::new(label).color(if active {
+            colors.accent_text
+        } else {
+            colors.text
+        }))
+        .fill(if active { colors.selected } else { colors.card })
+        .stroke(if current(ui.ctx()).is_xdj() {
+            Stroke::new(1.0, if active { colors.accent } else { colors.line })
+        } else {
+            Stroke::NONE
+        })
+        .corner_radius(colors.radius),
     )
 }
 
 pub fn primary(ui: &mut Ui, label: &str, size: Vec2) -> Response {
+    let colors = palette(ui.ctx());
     ui.add_sized(
         size,
-        Button::new(RichText::new(label).color(BG).strong())
-            .fill(ORANGE)
-            .corner_radius(8),
+        Button::new(
+            RichText::new(label)
+                .color(if current(ui.ctx()).is_xdj() {
+                    colors.text
+                } else {
+                    colors.bg
+                })
+                .strong(),
+        )
+        .fill(colors.accent)
+        .corner_radius(colors.radius),
     )
 }
 

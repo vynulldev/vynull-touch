@@ -35,6 +35,7 @@ impl Columns {
 
 impl App {
     pub(in crate::app) fn library_table(&mut self, ui: &mut Ui, height: f32) -> Option<Track> {
+        let colors = crate::theme::palette(ui.ctx());
         let mut inspect = None;
         let reference = self.library_match_player().cloned();
         let on_deck = self.on_deck_snapshot();
@@ -53,7 +54,7 @@ impl App {
             if header_height > 0.0 {
                 let (header, _) =
                     ui.allocate_exact_size(vec2(width, header_height), Sense::hover());
-                ui.painter().rect_filled(header, 0, CARD);
+                ui.painter().rect_filled(header, 0, colors.card);
                 for (cell, (label, field)) in columns.rects(header).into_iter().zip([
                     ("Preview", None),
                     ("Track", Some(Sort::Title)),
@@ -63,7 +64,11 @@ impl App {
                     ("Time", Some(Sort::Duration)),
                 ]) {
                     let active = field == Some(self.order.field);
-                    let color = if active { ORANGE } else { MUTED };
+                    let color = if active {
+                        colors.accent_text
+                    } else {
+                        colors.muted
+                    };
                     let mut text = cell.shrink2(vec2(8.0, 0.0));
                     if active {
                         text.max.x -= 12.0;
@@ -79,9 +84,9 @@ impl App {
                             Stroke::NONE,
                         ));
                     }
-                    theme::text(ui.painter(), text, label, 13.0, color);
+                    theme::text(ui.painter(), text, label, 14.0, color);
                     ui.painter()
-                        .vline(cell.right(), cell.y_range(), Stroke::new(1.0, BG));
+                        .vline(cell.right(), cell.y_range(), Stroke::new(1.0, colors.bg));
                     if let Some(field) = field {
                         let response = ui.interact(
                             cell,
@@ -126,18 +131,18 @@ impl App {
                             rect,
                             0,
                             if selected {
-                                Color32::from_rgb(91, 49, 26)
+                                colors.row_selected
                             } else if row % 2 == 0 {
-                                PANEL
+                                colors.panel
                             } else {
-                                BG
+                                colors.bg
                             },
                         );
                         if selected {
                             ui.painter().rect_filled(
                                 Rect::from_min_size(rect.min, vec2(3.0, rect.height())),
                                 0,
-                                ORANGE,
+                                colors.accent,
                             );
                         }
                         let cells = columns.rects(rect);
@@ -171,11 +176,11 @@ impl App {
                             let center = badge.center();
                             ui.painter().line_segment(
                                 [center + vec2(-5.0, 0.0), center + vec2(-1.0, 4.0)],
-                                Stroke::new(2.0, BG),
+                                Stroke::new(2.0, colors.bg),
                             );
                             ui.painter().line_segment(
                                 [center + vec2(-1.0, 4.0), center + vec2(5.0, -4.0)],
-                                Stroke::new(2.0, BG),
+                                Stroke::new(2.0, colors.bg),
                             );
                             self.hit(&format!("Prepared track {}", track.id), badge);
                         }
@@ -201,9 +206,9 @@ impl App {
                             ui.painter().hline(
                                 wave.x_range(),
                                 wave.bottom() - 1.0,
-                                Stroke::new(1.0, LINE),
+                                Stroke::new(1.0, colors.line),
                             );
-                            theme::text(ui.painter(), wave.shrink(4.0), "—", 12.0, MUTED);
+                            theme::text(ui.painter(), wave.shrink(4.0), "—", 12.0, colors.muted);
                         }
                         let cues = if self.options.demo {
                             self.demo_cues.get(&track.id).map_or(&[][..], Vec::as_slice)
@@ -292,13 +297,13 @@ impl App {
                                 );
                             }
                             let color = if track.file_missing {
-                                MUTED
+                                colors.muted
                             } else if compatible {
                                 GREEN
                             } else if i == 4 {
-                                MUTED
+                                colors.muted
                             } else {
-                                TEXT
+                                colors.text
                             };
                             if i == 0 && loaded {
                                 theme::text(
@@ -345,11 +350,14 @@ impl App {
                             ui.painter().vline(
                                 cell.right(),
                                 cell.y_range(),
-                                Stroke::new(1.0, LINE),
+                                Stroke::new(1.0, colors.line),
                             );
                         }
-                        ui.painter()
-                            .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, LINE));
+                        ui.painter().hline(
+                            rect.x_range(),
+                            rect.bottom(),
+                            Stroke::new(1.0, colors.line),
+                        );
                         self.hit(&format!("Track {}", track.id), rect);
                         self.hit(&format!("Preview {}", track.id), wave);
                         self.hit(&format!("Artwork {}", track.id), cover);
@@ -381,7 +389,7 @@ impl App {
                     rows.inner_rect.shrink(8.0),
                     message,
                     16.0,
-                    MUTED,
+                    colors.muted,
                 );
                 self.hit("Library empty", rows.inner_rect);
             }

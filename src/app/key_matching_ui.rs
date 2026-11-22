@@ -34,6 +34,7 @@ impl App {
     }
 
     pub(super) fn key_matching_modal(&mut self, ctx: &Context) {
+        let colors = crate::theme::palette(ctx);
         let Some(mut picker) = self.key_matching_picker.take() else {
             return;
         };
@@ -43,13 +44,16 @@ impl App {
             ui.heading("Key matching");
             ui.label("Same key always matches. Choose its compatible neighbors.");
             let mut rules = self.matching.key_rules;
-            for (name, label, value) in [
-                ("Relative", "Relative A/B   ·   3A to 3B", &mut rules.relative),
-                ("Next", "Next +1   ·   3A to 4A", &mut rules.next),
-                ("Previous", "Previous −1   ·   3A to 2A", &mut rules.previous),
+            for (name, label, example, value) in [
+                ("Relative", "Relative A/B", "3A to 3B", &mut rules.relative),
+                ("Next", "Next +1", "3A to 4A", &mut rules.next),
+                ("Previous", "Previous −1", "3A to 2A", &mut rules.previous),
             ] {
-                let response = ui.add(Checkbox::new(value, RichText::new(label).size(17.0)));
+                let response = key_rule_toggle(ui, label, example, *value);
                 self.hit(&format!("Key rule {name}"), response.rect);
+                if response.clicked() {
+                    *value = !*value;
+                }
             }
             if rules != self.matching.key_rules {
                 self.set_key_matching(&mut picker, rules);
@@ -58,8 +62,8 @@ impl App {
             let example = ["3A", "3B", "4A", "2A"].into_iter()
                 .filter(|key| rules.relation("3A", key).is_some()).collect::<Vec<_>>().join(", ");
             ui.label(RichText::new(format!("Example: 3A matches {example}")).color(GREEN));
-            ui.label(RichText::new("Applies to library highlighting and Match a player. Steps wrap between 12 and 1.").size(13.0).color(MUTED));
-            ui.label(RichText::new("Changes save automatically on this screen.").size(13.0).color(MUTED));
+            ui.label(RichText::new("Applies to library highlighting and Match a player. Steps wrap between 12 and 1.").size(13.0).color(colors.muted));
+            ui.label(RichText::new("Changes save automatically on this screen.").size(13.0).color(colors.muted));
             if !picker.error.is_empty() {
                 ui.add(Label::new(RichText::new(&picker.error).size(13.0).color(ORANGE)).wrap());
             }
@@ -79,4 +83,73 @@ impl App {
             self.key_matching_picker = Some(picker);
         }
     }
+}
+
+fn key_rule_toggle(ui: &mut Ui, label: &str, example: &str, enabled: bool) -> Response {
+    let colors = crate::theme::palette(ui.ctx());
+    let response = ui.add_sized(
+        vec2(ui.available_width(), 56.0),
+        Button::new("")
+            .fill(if enabled {
+                colors.selected
+            } else {
+                colors.card
+            })
+            .stroke(Stroke::new(
+                1.0,
+                if enabled { colors.accent } else { colors.line },
+            ))
+            .corner_radius(2),
+    );
+    response.widget_info(|| WidgetInfo::selected(Role::CheckBox, true, enabled, label));
+    let rect = response.rect;
+    let p = ui.painter();
+    let text = rect
+        .shrink2(vec2(14.0, 0.0))
+        .with_max_x(rect.right() - 120.0);
+    theme::text(
+        p,
+        text.with_max_y(rect.top() + 31.0),
+        label,
+        17.0,
+        colors.text,
+    );
+    theme::text(
+        p,
+        text.with_min_y(rect.top() + 28.0),
+        example,
+        13.0,
+        colors.muted,
+    );
+    let switch =
+        Rect::from_center_size(pos2(rect.right() - 38.0, rect.center().y), vec2(48.0, 26.0));
+    p.text(
+        switch.left_center() - vec2(12.0, 0.0),
+        Align2::RIGHT_CENTER,
+        if enabled { "On" } else { "Off" },
+        FontId::proportional(16.0),
+        if enabled {
+            colors.accent_text
+        } else {
+            colors.muted
+        },
+    );
+    p.rect_filled(
+        switch,
+        13,
+        if enabled { colors.accent } else { colors.line },
+    );
+    p.circle_filled(
+        pos2(
+            if enabled {
+                switch.right() - 13.0
+            } else {
+                switch.left() + 13.0
+            },
+            switch.center().y,
+        ),
+        10.0,
+        colors.text,
+    );
+    response
 }
