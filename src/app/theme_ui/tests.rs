@@ -60,6 +60,7 @@ fn switching_theme_preserves_state_and_updates_layout_at_touch_sizes() {
                 "Compare zoom −",
                 "Compare zoom +",
                 "Match a player",
+                "Network devices",
                 "Compare overview 1",
                 "Compare overview 2",
             ] {

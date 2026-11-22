@@ -119,6 +119,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
   disables loading.
 - Phrase strips with the current section, and bars/beats countdowns to the next
   phrase and the next cue.
+- The player count includes a mixer indicator; tap it to see discovered network
+  devices. Stale status is shown as unknown.
 - **Load to…** sends a track to a player after checking the library, track and
   player again. Replacing a playing track asks first; the load is confirmed from
   the player's status.
@@ -132,7 +134,8 @@ The app doesn't start Vynull: if Vynull runs on another machine, give it a
 - **CDJ & mixer…:** Vynull's shared CDJ, display and mixer settings (46 fields),
   and the CDJ menu's categories, sort options and detail column.
 - **Diagnostics:** status, versions, request errors, the Vynull log, and a report
-  to copy.
+  to copy. **Network** lists discovered devices, their addresses, and mixer
+  on-air channels when reported.
 
 **Record**
 

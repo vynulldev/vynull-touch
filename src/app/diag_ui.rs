@@ -6,6 +6,14 @@ mod overview;
 
 const ROW_HEIGHT: f32 = 22.0;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Tab {
+    #[default]
+    Status,
+    Logs,
+    Network,
+}
+
 struct Row {
     timestamp: String,
     text: String,
@@ -18,7 +26,7 @@ pub(super) struct Diagnostics {
     pub logs: Logs,
     pub version: crate::diagnostics::version::Version,
     pub requests: overview::Requests,
-    showing_logs: bool,
+    pub(super) tab: Tab,
     rows: Vec<Row>,
     revision: u64,
     width: f32,
@@ -35,20 +43,20 @@ impl App {
             if back.clicked() {
                 self.page = Page::Settings;
             }
-            for (logs, label, width) in [(false, "Status", 96.0), (true, "Logs", 80.0)] {
-                let tab = theme::button(
-                    ui,
-                    label,
-                    vec2(width, 48.0),
-                    self.diagnostics.showing_logs == logs,
-                );
-                self.hit(&format!("Diag tab {label}"), tab.rect);
-                if tab.clicked() {
-                    self.diagnostics.showing_logs = logs;
+            for (tab, label, width) in [
+                (Tab::Status, "Status", 80.0),
+                (Tab::Logs, "Logs", 80.0),
+                (Tab::Network, "Network", 96.0),
+            ] {
+                let button =
+                    theme::button(ui, label, vec2(width, 48.0), self.diagnostics.tab == tab);
+                self.hit(&format!("Diag tab {label}"), button.rect);
+                if button.clicked() {
+                    self.diagnostics.tab = tab;
                 }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if !self.diagnostics.showing_logs {
+                if self.diagnostics.tab != Tab::Logs {
                     let copy = theme::button(ui, "Copy diagnostics", vec2(176.0, 48.0), false)
                         .on_hover_text("Copy status, versions, errors and any fetched logs");
                     self.hit("Copy diagnostics", copy.rect);
@@ -71,7 +79,7 @@ impl App {
                         self.diagnostics.logs.entries.len()
                     );
                 }
-                let latest = theme::button(ui, "Latest", vec2(80.0, 48.0), false);
+                let latest = theme::button(ui, "Latest", vec2(72.0, 48.0), false);
                 self.hit("Diag latest", latest.rect);
                 if latest.clicked() {
                     self.diagnostics.logs.resume();
@@ -100,13 +108,17 @@ impl App {
             ui.ctx(),
             &self.options.server,
             self.options.demo,
-            self.page == Page::Diag && !self.diagnostics.showing_logs,
+            self.page == Page::Diag && self.diagnostics.tab == Tab::Status,
         );
-        if !self.diagnostics.showing_logs {
+        if self.diagnostics.tab != Tab::Logs {
             self.diagnostics
                 .logs
                 .update(ui.ctx(), &self.options.server, self.options.demo, false);
-            self.diagnostic_overview(ui);
+            if self.diagnostics.tab == Tab::Network {
+                self.network_devices(ui);
+            } else {
+                self.diagnostic_overview(ui);
+            }
             return;
         }
         let (origin, _) = ui.allocate_exact_size(vec2(ui.available_width(), 18.0), Sense::hover());

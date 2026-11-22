@@ -90,6 +90,14 @@ pub fn status() -> Status {
                 mac: format!("02:00:00:00:00:{n:02x}"),
                 ..Default::default()
             })
+            .chain(std::iter::once(Peer {
+                device_number: 33,
+                name: "DJM-A9".into(),
+                device_type: "mixer".into(),
+                ip: "169.254.1.33".into(),
+                mac: "02:00:00:00:00:21".into(),
+                ..Default::default()
+            }))
             .collect(),
         players: vec![
             Player {
